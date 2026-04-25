@@ -6,6 +6,33 @@ browser.runtime.onInstalled.addListener(() => {
   console.log('AI 邮件助手已安装');
 });
 
+// 获取邮件内容（回复邮件中已包含原始邮件的引用）
+async function getEmailConversation(messageId) {
+  try {
+    // 获取当前邮件的完整信息
+    const message = await browser.messages.get(messageId);
+    const fullMessage = await browser.messages.getFull(message.id);
+    
+    console.log('当前邮件:', message.subject);
+    
+    // 返回当前邮件内容即可（回复邮件中已包含原始邮件引用）
+    const conversation = [{
+      id: message.id,
+      subject: message.subject,
+      from: formatAuthor(message.author),
+      date: formatDate(message.date),
+      body: extractEmailBody(fullMessage.parts) || '（无内容）',
+      isReply: message.subject.toLowerCase().startsWith('re:')
+    }];
+    
+    return conversation;
+    
+  } catch (e) {
+    console.error('获取邮件失败:', e);
+    return [];
+  }
+}
+
 // 监听工具栏图标点击，打开聊天窗口
 browser.messageDisplayAction.onClicked.addListener(async (tab) => {
   console.log('图标被点击，当前标签页:', tab.id);
@@ -26,7 +53,8 @@ browser.messageDisplayAction.onClicked.addListener(async (tab) => {
       console.log('获取到邮件:', message ? message.subject : 'null');
       
       if (message) {
-        const fullMessage = await browser.messages.getFull(message.id);
+        // 获取邮件会话历史
+        const conversation = await getEmailConversation(message.id);
         
         // 等待聊天窗口加载完成后发送邮件数据
         setTimeout(() => {
@@ -35,7 +63,7 @@ browser.messageDisplayAction.onClicked.addListener(async (tab) => {
             subject: message.subject || '无主题',
             from: formatAuthor(message.author),
             date: formatDate(message.date),
-            body: extractEmailBody(fullMessage.parts) || '（无内容）'
+            conversation: conversation
           }).catch(err => {
             console.log('发送消息失败，等待重试:', err.message);
             // 重试一次
@@ -45,7 +73,7 @@ browser.messageDisplayAction.onClicked.addListener(async (tab) => {
                 subject: message.subject || '无主题',
                 from: formatAuthor(message.author),
                 date: formatDate(message.date),
-                body: extractEmailBody(fullMessage.parts) || '（无内容）'
+                conversation: conversation
               }).catch(retryErr => {
                 console.error('重试失败:', retryErr);
               });
@@ -71,14 +99,15 @@ browser.messageDisplay.onMessageDisplayed.addListener(async (tab) => {
       const message = await browser.messageDisplay.getDisplayedMessage(tab.id);
       
       if (message) {
-        const fullMessage = await browser.messages.getFull(message.id);
+        // 获取邮件会话历史
+        const conversation = await getEmailConversation(message.id);
         
         browser.tabs.sendMessage(chatTabId, {
           type: 'emailContent',
           subject: message.subject || '无主题',
           from: formatAuthor(message.author),
           date: formatDate(message.date),
-          body: extractEmailBody(fullMessage.parts) || '（无内容）'
+          conversation: conversation
         }).catch(err => {
           console.log('聊天窗口可能未打开:', err.message);
         });

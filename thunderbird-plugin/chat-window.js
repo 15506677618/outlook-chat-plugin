@@ -22,14 +22,21 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     currentEmail = message;
     displayEmail(currentEmail);
     
-    // 添加欢迎消息
-    addMessage(`📧 **已加载邮件**
+    // 构建欢迎消息
+    let welcomeMsg = `📧 **已加载邮件**
 
 **主题：** ${currentEmail.subject}
 **发件人：** ${currentEmail.from}
-**日期：** ${currentEmail.date}
-
-您可以询问我关于这封邮件的任何问题！`, false);
+**日期：** ${currentEmail.date}`;
+    
+    // 如果有会话历史，显示邮件数量
+    if (currentEmail.conversation && currentEmail.conversation.length > 1) {
+      welcomeMsg += `\n\n📨 **此邮件会话共 ${currentEmail.conversation.length} 封邮件**`;
+    }
+    
+    welcomeMsg += `\n\n您可以询问我关于这封邮件的任何问题！`;
+    
+    addMessage(welcomeMsg, false);
     
     sendResponse({success: true});
   }
@@ -40,9 +47,32 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 function displayEmail(email) {
   console.log('显示邮件:', email);
   
-  if (emailFromEl) emailFromEl.textContent = email.from || '-';
-  if (emailDateEl) emailDateEl.textContent = email.date || '-';
-  if (emailBodyEl) emailBodyEl.textContent = email.body || '（无内容）';
+  // 如果有会话历史，显示完整的会话
+  if (email.conversation && email.conversation.length > 0) {
+    // 显示原始邮件（第一封）
+    const originalEmail = email.conversation[0];
+    if (emailFromEl) emailFromEl.textContent = originalEmail.from || '-';
+    if (emailDateEl) emailDateEl.textContent = originalEmail.date || '-';
+    
+    // 构建完整的会话内容
+    let fullContent = '';
+    email.conversation.forEach((msg, index) => {
+      const prefix = msg.isReply ? '【回复】' : '【原始】';
+      fullContent += `${prefix} ${msg.from} (${msg.date}):\n${msg.body}\n\n${'='.repeat(50)}\n\n`;
+    });
+    
+    if (emailBodyEl) emailBodyEl.textContent = fullContent.trim();
+  } else if (email.from) {
+    // 没有会话历史但有邮件基本信息，显示当前邮件
+    if (emailFromEl) emailFromEl.textContent = email.from || '-';
+    if (emailDateEl) emailDateEl.textContent = email.date || '-';
+    if (emailBodyEl) emailBodyEl.textContent = '（无法获取邮件内容）';
+  } else {
+    // 没有任何邮件信息
+    if (emailFromEl) emailFromEl.textContent = '-';
+    if (emailDateEl) emailDateEl.textContent = '-';
+    if (emailBodyEl) emailBodyEl.textContent = '（无内容）';
+  }
 }
 
 function addMessage(content, isUser = false) {
@@ -111,16 +141,30 @@ async function sendMessage() {
   // 构建简洁的对话历史，只包含必要的上下文
   const messagesToSend = [];
   
-  // 如果有邮件，添加简短的上下文提示
+  // 如果有邮件，添加上下文提示
   if (currentEmail) {
-    messagesToSend.push({
-      role: 'system',
-      content: `你正在帮助用户分析一封邮件。
+    let emailContext = `你正在帮助用户分析邮件。
 邮件主题：${currentEmail.subject}
 发件人：${currentEmail.from}
 日期：${currentEmail.date}
 
-当用户询问邮件相关内容时，请基于以上邮件信息进行回答。保持回答简洁专业。`
+`;
+    
+    // 如果有会话历史，添加完整会话
+    if (currentEmail.conversation && currentEmail.conversation.length > 0) {
+      emailContext += `=== 邮件会话历史 ===\n\n`;
+      currentEmail.conversation.forEach((msg, index) => {
+        const type = msg.isReply ? '【回复】' : '【原始邮件】';
+        emailContext += `${type} 发件人：${msg.from}\n日期：${msg.date}\n内容：\n${msg.body}\n\n---\n\n`;
+      });
+      emailContext += `=== 会话结束 ===\n\n`;
+    }
+    
+    emailContext += `当用户询问邮件相关内容时，请基于以上邮件信息进行回答。注意区分原始邮件和回复邮件的内容。保持回答简洁专业。`;
+    
+    messagesToSend.push({
+      role: 'system',
+      content: emailContext
     });
   }
   
