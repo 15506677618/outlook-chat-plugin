@@ -35,7 +35,7 @@ outlook-chat-plugin/
 
 ### 方式一：直接安装（推荐）
 
-1. 下载插件文件 `ai-mail-assistant.xpi`
+1. 下载本项目并打包插件（见下方"打包插件"）
 2. 打开 Thunderbird
 3. 按 `Ctrl+Shift+A` 打开附加组件管理器
 4. 点击齿轮图标 ⚙️ > **从文件安装附加组件**

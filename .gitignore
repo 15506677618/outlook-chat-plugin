@@ -32,3 +32,6 @@ coverage/
 # 临时文件
 tmp/
 temp/
+
+# 插件打包文件
+*.xpi
