@@ -1,111 +1,267 @@
-// Popup script to get and display email content
+// Popup script for Thunderbird extension
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const emailAuthor = document.getElementById('email-author');
-  const emailDate = document.getElementById('email-date');
-  const emailContent = document.getElementById('email-content');
-  const chatFrame = document.getElementById('chat-frame');
+const API_URL = 'https://koudai.xin/api/chat';
 
-  async function loadCurrentEmail() {
+// DOM 元素
+const messagesContainer = document.getElementById('messages');
+const userInput = document.getElementById('user-input');
+const sendBtn = document.getElementById('send-btn');
+const emailSubjectEl = document.getElementById('email-subject');
+const emailFromEl = document.getElementById('email-from');
+const emailDateEl = document.getElementById('email-date');
+
+// 状态
+let conversationHistory = [];
+let currentEmail = null;
+
+// 初始化
+async function init() {
+  await loadCurrentEmail();
+  setupEventListeners();
+}
+
+// 加载当前邮件
+async function loadCurrentEmail() {
+  try {
+    const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+    
+    if (tabs.length === 0) {
+      setEmailInfo(null);
+      return;
+    }
+    
+    const currentTab = tabs[0];
+    
     try {
-      const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-
-      if (tabs.length === 0) {
-        showEmptyState();
+      const message = await browser.messageDisplay.getDisplayedMessage(currentTab.id);
+      
+      if (!message) {
+        setEmailInfo(null);
         return;
       }
+      
+      const fullMessage = await browser.messages.getFull(message.id);
+      const body = extractEmailBody(fullMessage.parts);
+      
+      currentEmail = {
+        id: message.id,
+        subject: message.subject || '无主题',
+        from: formatAuthor(message.author),
+        date: formatDate(message.date),
+        body: body || '（无内容）'
+      };
+      
+      setEmailInfo(currentEmail);
+      
+      // 添加欢迎消息
+      addMessage(`📧 **已加载邮件**
 
-      const currentTab = tabs[0];
+**主题：** ${currentEmail.subject}
+**发件人：** ${currentEmail.from}
 
-      try {
-        const message = await browser.messageDisplay.getDisplayedMessage(currentTab.id);
+您可以询问我关于这封邮件的任何问题！`, false);
+      
+    } catch (e) {
+      console.error('Error reading email:', e);
+      setEmailInfo(null);
+    }
+  } catch (error) {
+    console.error('Error getting tab:', error);
+    setEmailInfo(null);
+  }
+}
 
-        if (!message) {
-          showEmptyState();
-          return;
-        }
+function setEmailInfo(email) {
+  if (!email) {
+    emailSubjectEl.textContent = '-';
+    emailFromEl.textContent = '-';
+    emailDateEl.textContent = '-';
+    return;
+  }
+  
+  emailSubjectEl.textContent = email.subject;
+  emailFromEl.textContent = email.from;
+  emailDateEl.textContent = email.date;
+}
 
-        emailAuthor.textContent = `发件人: ${formatAuthor(message.author)}`;
-        emailDate.textContent = `日期: ${formatDate(message.date)}`;
-
-        const fullMessage = await browser.messages.getFull(message.id);
-        const body = extractEmailBody(fullMessage.parts);
-
-        emailContent.innerHTML = `<div class="body-text">${escapeHtml(body) || '（无内容）'}</div>`;
-
-        sendToChat(message, body);
-
-      } catch (e) {
-        console.error('Error reading email:', e);
-        showEmptyState('无法读取邮件内容');
-      }
-    } catch (error) {
-      console.error('Error getting tab:', error);
-      showEmptyState('获取邮件信息失败');
+function extractEmailBody(parts) {
+  if (!parts) return '';
+  
+  for (const part of parts) {
+    if (part.contentType === 'text/plain' && part.body) {
+      return part.body.trim();
+    } else if (part.contentType === 'text/html' && part.body) {
+      const text = part.body
+        .replace(/<[^>]*>/g, '')
+        .replace(/\s+/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .trim();
+      if (text) return text;
+    } else if (part.parts) {
+      const result = extractEmailBody(part.parts);
+      if (result) return result;
     }
   }
+  return '';
+}
 
-  function showEmptyState(msg) {
-    emailAuthor.textContent = '发件人: -';
-    emailDate.textContent = '日期: -';
-    emailContent.innerHTML = `<p style="color: #999;">${msg || '请选择一封邮件查看内容...'}</p>`;
-  }
+function formatAuthor(author) {
+  if (!author) return '未知';
+  const match = author.match(/<(.+)>/);
+  return match ? match[1] : author;
+}
 
-  function extractEmailBody(parts) {
-    if (!parts) return '';
-
-    for (const part of parts) {
-      if (part.contentType === 'text/plain' && part.body) {
-        return part.body;
-      } else if (part.contentType === 'text/html' && part.body) {
-        return part.body.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-      } else if (part.parts) {
-        const result = extractEmailBody(part.parts);
-        if (result) return result;
-      }
+function formatDate(date) {
+  if (!date) return '-';
+  try {
+    const d = new Date(date);
+    const now = new Date();
+    const diff = now - d;
+    
+    if (diff < 24 * 60 * 60 * 1000) {
+      return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
     }
-    return '';
+    return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+  } catch {
+    return date;
   }
+}
 
-  function formatAuthor(author) {
-    if (!author) return '未知';
-    const match = author.match(/<(.+)>/);
-    return match ? match[1] : author;
+function addMessage(content, isUser = false) {
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `message ${isUser ? 'user' : 'bot'}`;
+  
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = isUser ? '👤' : '🤖';
+  
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'content';
+  
+  const paragraph = document.createElement('p');
+  paragraph.innerHTML = content;
+  
+  contentDiv.appendChild(paragraph);
+  messageDiv.appendChild(avatar);
+  messageDiv.appendChild(contentDiv);
+  
+  messagesContainer.appendChild(messageDiv);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  
+  return contentDiv;
+}
+
+function addTypingIndicator() {
+  const typingDiv = document.createElement('div');
+  typingDiv.className = 'message bot';
+  typingDiv.id = 'typing-indicator';
+  
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = '🤖';
+  
+  const typingInner = document.createElement('div');
+  typingInner.className = 'typing';
+  typingInner.innerHTML = '<span></span><span></span><span></span>';
+  
+  typingDiv.appendChild(avatar);
+  typingDiv.appendChild(typingInner);
+  messagesContainer.appendChild(typingDiv);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function removeTypingIndicator() {
+  const indicator = document.getElementById('typing-indicator');
+  if (indicator) {
+    indicator.remove();
   }
+}
 
-  function formatDate(date) {
-    if (!date) return '-';
-    try {
-      return new Date(date).toLocaleString('zh-CN');
-    } catch {
-      return date;
+function getEmailContext() {
+  if (!currentEmail) return '';
+  
+  return `
+【当前邮件内容】
+主题：${currentEmail.subject}
+发件人：${currentEmail.from}
+日期：${currentEmail.date}
+内容：
+${currentEmail.body}
+`;
+}
+
+async function sendMessage() {
+  const message = userInput.value.trim();
+  
+  if (!message) return;
+  
+  addMessage(message, true);
+  
+  const emailContext = currentEmail ? getEmailContext() : '';
+  const userMessageWithContext = emailContext 
+    ? `${emailContext}\n\n用户问题：${message}`
+    : message;
+  
+  conversationHistory.push({ role: 'user', content: userMessageWithContext });
+  
+  userInput.value = '';
+  userInput.style.height = 'auto';
+  
+  addTypingIndicator();
+  
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: conversationHistory,
+        userMessage: message,
+        emailContext: currentEmail || null
+      })
+    });
+    
+    removeTypingIndicator();
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
+    
+    const data = await response.json();
+    const botMessage = data.response || data.message || '抱歉，我没有收到回复。';
+    
+    conversationHistory.push({ role: 'assistant', content: botMessage });
+    addMessage(botMessage);
+    
+  } catch (error) {
+    removeTypingIndicator();
+    
+    const errorMessage = `❌ 发送失败：${error.message}。请检查网络连接。`;
+    addMessage(errorMessage);
+    
+    console.error('Chat error:', error);
   }
+}
 
-  function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
+function setupEventListeners() {
+  sendBtn.addEventListener('click', sendMessage);
+  
+  userInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+  
+  userInput.addEventListener('input', () => {
+    userInput.style.height = 'auto';
+    userInput.style.height = Math.min(userInput.scrollHeight, 100) + 'px';
+  });
+}
 
-  function sendToChat(message, body) {
-    const emailSummary = `邮件主题: ${message.subject || '无主题'}\n发件人: ${formatAuthor(message.author)}\n\n内容:\n${body || '（无内容）'}`;
-
-    chatFrame.onload = () => {
-      try {
-        chatFrame.contentWindow.postMessage({
-          type: 'emailContent',
-          subject: message.subject,
-          author: formatAuthor(message.author),
-          body: body,
-          fullText: emailSummary
-        }, '*');
-      } catch (e) {
-        console.error('Failed to send to chat:', e);
-      }
-    };
-  }
-
-  loadCurrentEmail();
-});
+// 启动
+init();
