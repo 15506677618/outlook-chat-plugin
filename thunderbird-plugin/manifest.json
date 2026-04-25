@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "AI 邮件助手",
-  "version": "2.0.1",
-  "description": "AI 驱动的邮件助手，可在弹出窗口中与 AI 讨论邮件内容",
+  "version": "2.1.0",
+  "description": "AI 驱动的邮件助手，可在独立窗口中与 AI 讨论邮件内容",
   "browser_specific_settings": {
     "gecko": {
       "id": "ai-mail-assistant@koudai.xin",
@@ -19,7 +19,6 @@
   },
   "message_display_action": {
     "default_title": "AI 邮件助手",
-    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
