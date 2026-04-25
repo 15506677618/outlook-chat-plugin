@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>聊天助手</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="chat-container">
+    <header class="chat-header">
+      <h1>💬 聊天助手</h1>
+      <span class="status">在线</span>
+    </header>
+
+    <div id="messages" class="messages">
+      <div class="message bot">
+        <div class="avatar">🤖</div>
+        <div class="content">
+          <p>你好！我是聊天助手。有什么可以帮助你的吗？</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <textarea id="user-input" placeholder="输入消息..." rows="1"></textarea>
+      <button id="send-btn">发送</button>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
