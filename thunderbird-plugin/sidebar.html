@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chat Helper</title>
+  <title>AI 邮件助手</title>
   <style>
     * {
       margin: 0;
@@ -40,22 +40,11 @@
       border-radius: 12px;
     }
     
-    #chat-frame {
-      flex: 1;
-      width: 100%;
-      border: none;
-    }
-    
     #email-info-bar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
       background: #f8f9fa;
       border-bottom: 1px solid #e9ecef;
-      padding: 8px 12px;
+      padding: 10px 12px;
       font-size: 12px;
-      z-index: 1000;
       display: none;
     }
     
@@ -63,18 +52,57 @@
       display: block;
     }
     
-    #email-info-bar strong {
+    #email-info-bar .email-field {
+      margin-bottom: 6px;
       color: #495057;
+    }
+    
+    #email-info-bar .email-field:last-child {
+      margin-bottom: 0;
+    }
+    
+    #email-info-bar strong {
+      color: #6c757d;
+      margin-right: 6px;
+    }
+    
+    #email-info-bar .email-subject {
+      font-weight: 600;
+      color: #212529;
+    }
+    
+    #chat-frame {
+      flex: 1;
+      width: 100%;
+      border: none;
     }
   </style>
 </head>
 <body>
   <div id="chat-header">
-    <span>🤖 AI 聊天助手</span>
+    <span>🤖 AI 邮件助手</span>
     <span class="status">在线</span>
   </div>
-  <iframe id="chat-frame" src="https://koudai.xin/chat.html"></iframe>
-  <div id="email-info-bar"></div>
+  
+  <!-- 邮件信息栏 -->
+  <div id="email-info-bar">
+    <div class="email-field">
+      <strong>主题:</strong>
+      <span class="email-subject" id="email-subject">-</span>
+    </div>
+    <div class="email-field">
+      <strong>发件人:</strong>
+      <span id="email-from">-</span>
+    </div>
+    <div class="email-field">
+      <strong>日期:</strong>
+      <span id="email-date">-</span>
+    </div>
+  </div>
+  
+  <!-- 聊天窗口 -->
+  <iframe id="chat-frame" src="chat-window.html"></iframe>
+  
   <script src="sidebar.js"></script>
 </body>
 </html>

@@ -1,25 +1,24 @@
 {
   "manifest_version": 2,
-  "name": "Chat Helper",
-  "version": "1.0.9",
-  "description": "A chat helper for Thunderbird - opens a chat window",
+  "name": "AI 邮件助手",
+  "version": "2.0.0",
+  "description": "AI 驱动的邮件助手，可在侧边栏与 AI 讨论邮件内容",
   "browser_specific_settings": {
     "gecko": {
-      "id": "chat-helper@koudai.xin",
+      "id": "ai-mail-assistant@koudai.xin",
       "strict_min_version": "115.0"
     }
   },
   "permissions": [
     "messagesRead",
     "tabs",
-    "storage",
-    "https://koudai.xin/*"
+    "storage"
   ],
   "background": {
     "scripts": ["background.js"]
   },
   "message_display_action": {
-    "default_title": "聊天助手",
+    "default_title": "AI 邮件助手",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
@@ -31,5 +30,12 @@
     "32": "icons/icon-32.png",
     "48": "icons/icon-32.png",
     "128": "icons/icon-80.png"
+  },
+  "experiment_apis": {
+    "messageDisplay": {
+      "schema": "message_display.json",
+      "parent_scope": "messageDisplay",
+      "parent_paths": ["message_display.js"]
+    }
   }
 }

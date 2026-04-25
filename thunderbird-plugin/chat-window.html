@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chat Helper</title>
+  <title>AI 邮件助手</title>
   <style>
     * {
       margin: 0;
@@ -85,12 +85,14 @@
 <body>
   <div id="email-panel">
     <div id="email-header">
-      <h3>当前邮件</h3>
-      <p id="email-author">发件人：加载中...</p>
+      <h3 id="email-subject">当前邮件</h3>
+      <p id="email-from">发件人：-</p>
       <p id="email-date">日期：-</p>
     </div>
     <div id="email-content">
-      <p style="color: #6c757d;">正在加载邮件内容...</p>
+      <div class="body-text" id="email-body">
+        <p style="color: #6c757d;">正在加载邮件内容...</p>
+      </div>
     </div>
   </div>
   <div id="chat-panel">

@@ -1,7 +1,12 @@
 // Sidebar script to get and display email content
 
 const emailInfoBar = document.getElementById('email-info-bar');
+const emailSubjectEl = document.getElementById('email-subject');
+const emailFromEl = document.getElementById('email-from');
+const emailDateEl = document.getElementById('email-date');
 const chatFrame = document.getElementById('chat-frame');
+
+let currentEmail = null;
 
 async function loadCurrentEmail() {
   try {
@@ -25,8 +30,16 @@ async function loadCurrentEmail() {
       const fullMessage = await browser.messages.getFull(message.id);
       const body = extractEmailBody(fullMessage.parts);
 
-      showEmailInfo(message, body);
-      sendToChat(message, body);
+      currentEmail = {
+        id: message.id,
+        subject: message.subject || '无主题',
+        from: formatAuthor(message.author),
+        date: formatDate(message.date),
+        body: body || '（无内容）'
+      };
+
+      showEmailInfo(currentEmail);
+      sendToChat(currentEmail);
 
     } catch (e) {
       console.error('Error reading email:', e);
@@ -38,22 +51,16 @@ async function loadCurrentEmail() {
   }
 }
 
-function showEmailInfo(message, body) {
-  const author = formatAuthor(message.author);
-  const date = formatDate(message.date);
-  const shortBody = (body || '').substring(0, 150);
-
-  emailInfoBar.innerHTML = `
-    <strong>主题:</strong> ${escapeHtml(message.subject || '无主题')} | 
-    <strong>发件人:</strong> ${escapeHtml(author)} | 
-    <strong>日期:</strong> ${date}
-    <br><span style="color: #6c757d;">${escapeHtml(shortBody)}${body.length > 150 ? '...' : ''}</span>
-  `;
+function showEmailInfo(email) {
+  emailSubjectEl.textContent = email.subject;
+  emailFromEl.textContent = email.from;
+  emailDateEl.textContent = email.date;
   emailInfoBar.classList.add('show');
 }
 
 function hideEmailInfo() {
   emailInfoBar.classList.remove('show');
+  currentEmail = null;
 }
 
 function extractEmailBody(parts) {
@@ -61,9 +68,17 @@ function extractEmailBody(parts) {
 
   for (const part of parts) {
     if (part.contentType === 'text/plain' && part.body) {
-      return part.body;
+      return part.body.trim();
     } else if (part.contentType === 'text/html' && part.body) {
-      return part.body.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+      const text = part.body
+        .replace(/<[^>]*>/g, '')
+        .replace(/\s+/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .trim();
+      if (text) return text;
     } else if (part.parts) {
       const result = extractEmailBody(part.parts);
       if (result) return result;
@@ -96,33 +111,47 @@ function formatDate(date) {
   }
 }
 
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
+function sendToChat(email) {
+  const emailData = {
+    type: 'emailContent',
+    subject: email.subject,
+    from: email.from,
+    date: email.date,
+    body: email.body,
+    fullContext: `【邮件内容】
+主题：${email.subject}
+发件人：${email.from}
+日期：${email.date}
 
-function sendToChat(message, body) {
-  const emailSummary = `邮件主题：${message.subject || '无主题'}\n发件人：${formatAuthor(message.author)}\n\n内容:\n${body || '（无内容）'}`;
-
-  chatFrame.onload = () => {
-    try {
-      chatFrame.contentWindow.postMessage({
-        type: 'emailContent',
-        subject: message.subject,
-        author: formatAuthor(message.author),
-        body: body,
-        fullText: emailSummary
-      }, '*');
-    } catch (e) {
-      console.error('Failed to send to chat:', e);
-    }
+${email.body}`
   };
+
+  // 等待 iframe 加载完成后发送数据
+  if (chatFrame.contentWindow) {
+    chatFrame.contentWindow.postMessage(emailData, '*');
+  } else {
+    chatFrame.onload = () => {
+      chatFrame.contentWindow.postMessage(emailData, '*');
+    };
+  }
 }
 
 // 监听邮件切换
-browser.messageDisplay.onMessageDisplayed.addListener(loadCurrentEmail);
+if (browser.messageDisplay && browser.messageDisplay.onMessageDisplayed) {
+  browser.messageDisplay.onMessageDisplayed.addListener(loadCurrentEmail);
+}
 
 // 初始化
 loadCurrentEmail();
+
+// 监听来自聊天窗口的消息
+window.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'getEmailContent') {
+    if (currentEmail) {
+      event.source.postMessage({
+        type: 'emailContentResponse',
+        email: currentEmail
+      }, '*');
+    }
+  }
+});
