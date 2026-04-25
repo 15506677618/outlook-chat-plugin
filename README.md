@@ -29,14 +29,17 @@ outlook-chat-plugin/
 
 ## 安装插件
 
-### 方式一：直接安装（推荐）
+### 方式一：获取插件文件（推荐）
 
-1. 下载本项目并打包插件（见下方"打包插件"）
-2. 打开 Thunderbird
-3. 按 `Ctrl+Shift+A` 打开附加组件管理器
-4. 点击齿轮图标 ⚙️ > **从文件安装附加组件**
-5. 选择 `ai-mail-assistant.xpi` 文件
-6. 重启 Thunderbird
+关注微信公众号 **「扣扣口袋」**，回复「邮件助手」获取插件文件下载链接。
+
+获取到 `ai-mail-assistant.xpi` 文件后：
+
+1. 打开 Thunderbird
+2. 按 `Ctrl+Shift+A` 打开附加组件管理器
+3. 点击齿轮图标 ⚙️ > **从文件安装附加组件**
+4. 选择 `ai-mail-assistant.xpi` 文件
+5. 重启 Thunderbird
 
 ### 方式二：开发模式安装
 
@@ -115,7 +118,6 @@ npm start
 - **前端**: HTML5, CSS3, JavaScript (ES6+)
 - **后端**: Node.js, Express
 - **AI 服务**: SiliconFlow AI (GLM-4.7)
-- **构建工具**: Vite
 - **插件平台**: Thunderbird MailExtensions
 
 ## 注意事项
