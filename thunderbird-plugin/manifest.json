@@ -31,11 +31,14 @@
     "48": "icons/icon-32.png",
     "128": "icons/icon-80.png"
   },
-  "experiment_apis": {
-    "messageDisplay": {
-      "schema": "message_display.json",
-      "parent_scope": "messageDisplay",
-      "parent_paths": ["message_display.js"]
-    }
+  "sidebar_action": {
+    "default_title": "AI 邮件助手",
+    "default_panel": "sidebar.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-32.png"
+    },
+    "open_at_install": true
   }
 }
