@@ -137,20 +137,11 @@ server {
                application/json application/javascript;
 
     # 前端静态文件
+    root ${PROJECT_DIR}/dist;
+    index index.html;
+
     location / {
-        root ${PROJECT_DIR}/dist;
-        index chat.html;
-        
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
-            expires 30d;
-            add_header Cache-Control "public, immutable";
-        }
-        
-        location = / {
-            return 301 /chat.html;
-        }
-        
-        try_files \$uri \$uri/ /chat.html;
+        try_files \$uri \$uri/ =404;
     }
     
     # 反向代理到 Node.js 后端
@@ -217,7 +208,7 @@ else
 fi
 
 # 检查前端
-if [ -d "dist" ] && [ -f "dist/chat.html" ]; then
+if [ -d "dist" ] && [ -f "dist/index.html" ]; then
   echo -e "${GREEN}✓ 前端构建成功${NC}"
 else
   echo -e "${RED}✗ 前端构建失败${NC}"
@@ -246,9 +237,9 @@ echo -e "${GREEN}🎉 部署完成！${NC}"
 echo -e "${GREEN}==================================${NC}"
 echo ""
 echo -e "${BLUE}访问地址：${NC}"
-echo -e "  前端：http://${DOMAIN}/chat.html"
+echo -e "  前端：http://${DOMAIN}/"
 echo -e "  API:   http://${DOMAIN}/api/chat"
-echo -e "  直接 IP: http://47.116.122.157/chat.html"
+echo -e "  直接 IP: http://47.116.122.157/"
 echo ""
 echo -e "${BLUE}常用命令：${NC}"
 echo -e "  查看日志：pm2 logs outlook-chat-backend"

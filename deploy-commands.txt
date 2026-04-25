@@ -1,0 +1,150 @@
+# 阿里云部署 - 服务器端执行脚本
+# 
+# 使用方法：
+# 1. SSH 登录：ssh root@47.116.122.157
+# 2. 复制下面所有内容粘贴到终端执行
+# 3. 或者保存为文件后执行：cat > /root/deploy.sh && chmod +x /root/deploy.sh && ./deploy.sh
+
+# ========== 开始复制以下内容 ==========
+
+# 设置变量
+PROJECT_DIR="/var/www/outlook-chat-plugin"
+DOMAIN="koudai.xin"
+GIT_REPO="https://github.com/15506677618/outlook-chat-plugin.git"
+
+echo "🚀 开始部署 Outlook Chat Plugin"
+echo "服务器：47.116.122.157"
+echo "域名：${DOMAIN}"
+echo ""
+
+# 1. 更新系统
+echo "[1/8] 更新系统..."
+apt update -qq && apt upgrade -y -qq
+
+# 2. 安装 Node.js 18
+echo "[2/8] 安装 Node.js..."
+curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+apt install -y nodejs
+
+# 3. 安装 PM2 和依赖
+echo "[3/8] 安装 PM2 和系统依赖..."
+npm install -g pm2
+apt install -y nginx git
+
+# 4. 创建项目目录并克隆代码
+echo "[4/8] 克隆项目代码..."
+mkdir -p ${PROJECT_DIR}
+cd ${PROJECT_DIR}
+rm -rf * 2>/dev/null || true
+git clone ${GIT_REPO} .
+
+# 5. 安装依赖并构建
+echo "[5/8] 安装依赖并构建前端..."
+cd ${PROJECT_DIR}
+npm install
+npm run build
+
+# 6. 配置环境变量（演示模式）
+echo "[6/8] 配置环境变量..."
+cp .env.example .env
+echo "SILICONFLOW_API_KEY=demo" > .env
+echo "PORT=3000" >> .env
+chmod 600 .env
+echo "⚠️ AI 服务为演示模式"
+
+# 7. 配置 Nginx
+echo "[7/8] 配置 Nginx..."
+cat > /etc/nginx/sites-available/${DOMAIN} << 'NGINX_EOF'
+server {
+    listen 80;
+    server_name koudai.xin www.koudai.xin 47.116.122.157;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json application/javascript;
+
+    location / {
+        root /var/www/outlook-chat-plugin/dist;
+        index chat.html;
+        
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+            expires 30d;
+            add_header Cache-Control "public, immutable";
+        }
+        
+        location = / {
+            return 301 /chat.html;
+        }
+        
+        try_files $uri $uri/ /chat.html;
+    }
+    
+    location /api/ {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_cache_bypass $http_upgrade;
+        
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+    
+    access_log /var/log/nginx/koudai.xin-access.log;
+    error_log /var/log/nginx/koudai.xin-error.log;
+}
+NGINX_EOF
+
+rm -f /etc/nginx/sites-enabled/default
+ln -s /etc/nginx/sites-available/${DOMAIN} /etc/nginx/sites-enabled/
+nginx -t
+systemctl restart nginx
+
+# 8. 启动应用
+echo "[8/8] 启动应用..."
+mkdir -p /var/log/pm2
+chown -R $USER:$USER /var/log/pm2
+
+if [ -f "ecosystem.config.js" ]; then
+    pm2 start ecosystem.config.js
+else
+    pm2 start src/backend/server.js --name outlook-chat-backend
+fi
+pm2 save
+pm2 startup | tail -1 | bash
+
+# 验证
+echo ""
+echo "验证服务..."
+sleep 2
+pm2 list
+systemctl status nginx --no-pager
+
+# 完成
+echo ""
+echo "=================================="
+echo "🎉 部署完成！"
+echo "=================================="
+echo ""
+echo "访问地址："
+echo "  http://koudai.xin/chat.html"
+echo "  http://www.koudai.xin/chat.html"
+echo "  http://47.116.122.157/chat.html"
+echo ""
+echo "重要提示："
+echo "  1. AI 服务当前为演示模式"
+echo "  2. 配置 API Key: nano /var/www/outlook-chat-plugin/.env"
+echo "  3. 配置后重启：pm2 restart outlook-chat-backend"
+echo ""
+echo "常用命令："
+echo "  pm2 logs outlook-chat-backend  # 查看日志"
+echo "  pm2 restart outlook-chat-backend # 重启"
+echo "  pm2 list                       # 查看状态"
+echo ""
+
+# ========== 以上所有内容 ==========
