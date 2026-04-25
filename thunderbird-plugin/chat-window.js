@@ -97,19 +97,6 @@ function removeTypingIndicator() {
   }
 }
 
-function getEmailContext() {
-  if (!currentEmail) return '';
-  
-  return `
-【当前邮件内容】
-主题：${currentEmail.subject}
-发件人：${currentEmail.from}
-日期：${currentEmail.date}
-内容：
-${currentEmail.body}
-`;
-}
-
 async function sendMessage() {
   const message = userInput.value.trim();
   
@@ -121,12 +108,30 @@ async function sendMessage() {
   console.log('发送消息:', message);
   addMessage(message, true);
   
-  const emailContext = currentEmail ? getEmailContext() : '';
-  const userMessageWithContext = emailContext 
-    ? `${emailContext}\n\n用户问题：${message}`
-    : message;
+  // 构建简洁的对话历史，只包含必要的上下文
+  const messagesToSend = [];
   
-  conversationHistory.push({ role: 'user', content: userMessageWithContext });
+  // 如果有邮件，添加简短的上下文提示
+  if (currentEmail) {
+    messagesToSend.push({
+      role: 'system',
+      content: `你正在帮助用户分析一封邮件。
+邮件主题：${currentEmail.subject}
+发件人：${currentEmail.from}
+日期：${currentEmail.date}
+
+当用户询问邮件相关内容时，请基于以上邮件信息进行回答。保持回答简洁专业。`
+    });
+  }
+  
+  // 添加对话历史（限制最近 10 条消息）
+  const recentHistory = conversationHistory.slice(-10);
+  messagesToSend.push(...recentHistory);
+  
+  // 添加当前用户消息
+  messagesToSend.push({ role: 'user', content: message });
+  
+  conversationHistory.push({ role: 'user', content: message });
   
   userInput.value = '';
   userInput.style.height = 'auto';
@@ -135,6 +140,7 @@ async function sendMessage() {
   
   try {
     console.log('发送 API 请求到:', API_URL);
+    console.log('请求数据:', JSON.stringify({ messages: messagesToSend }, null, 2));
     
     const response = await fetch(API_URL, {
       method: 'POST',
@@ -142,9 +148,8 @@ async function sendMessage() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        messages: conversationHistory,
-        userMessage: message,
-        emailContext: currentEmail || null
+        messages: messagesToSend,
+        userMessage: message
       })
     });
     
