@@ -15,11 +15,7 @@
 ```
 outlook-chat-plugin/
 ├── package.json              # 项目配置
-├── vite.config.js            # Vite 构建配置
-├── src/                      # 网页版前端代码
-│   ├── index.html
-│   ├── styles.css
-│   ├── app.js
+├── src/
 │   └── backend/
 │       └── server.js         # Node.js 后端服务器
 ├── thunderbird-plugin/       # Thunderbird 插件
@@ -49,6 +45,24 @@ outlook-chat-plugin/
 3. 点击 **工具** > **开发者工具** > **调试插件**
 4. 点击 **临时加载附加组件**
 5. 选择 `thunderbird-plugin/manifest.json`
+
+## 打包插件
+
+### Windows (PowerShell)
+
+```powershell
+cd thunderbird-plugin
+Compress-Archive -Path * -DestinationPath ..\ai-mail-assistant.zip -Force
+cd ..
+Rename-Item ai-mail-assistant.zip ai-mail-assistant.xpi -Force
+```
+
+### Linux / macOS
+
+```bash
+cd thunderbird-plugin
+zip -r ../ai-mail-assistant.xpi *
+```
 
 ## 使用方法
 
