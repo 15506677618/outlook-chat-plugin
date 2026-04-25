@@ -3,28 +3,58 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>聊天助手</title>
+  <title>邮件聊天助手</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div id="chat-container">
-    <header class="chat-header">
-      <h1>💬 聊天助手</h1>
-      <span class="status">在线</span>
-    </header>
-
-    <div id="messages" class="messages">
-      <div class="message bot">
-        <div class="avatar">🤖</div>
-        <div class="content">
-          <p>你好！我是聊天助手。有什么可以帮助你的吗？</p>
+  <div id="app-container">
+    <!-- 左侧邮件面板 -->
+    <div id="email-panel">
+      <div class="email-header">
+        <h2>📧 邮件内容</h2>
+        <button id="load-email-btn" title="加载邮件">🔄</button>
+      </div>
+      <div id="email-content">
+        <div class="email-meta">
+          <div class="email-field">
+            <strong>发件人:</strong>
+            <span id="email-from">-</span>
+          </div>
+          <div class="email-field">
+            <strong>主题:</strong>
+            <span id="email-subject">-</span>
+          </div>
+          <div class="email-field">
+            <strong>日期:</strong>
+            <span id="email-date">-</span>
+          </div>
+        </div>
+        <div id="email-body" class="email-body">
+          <p class="placeholder-text">点击 🔄 按钮加载当前邮件内容</p>
         </div>
       </div>
     </div>
 
-    <div class="input-area">
-      <textarea id="user-input" placeholder="输入消息..." rows="1"></textarea>
-      <button id="send-btn">发送</button>
+    <!-- 右侧聊天面板 -->
+    <div id="chat-container">
+      <header class="chat-header">
+        <h1>💬 AI 助手</h1>
+        <span class="status">在线</span>
+      </header>
+
+      <div id="messages" class="messages">
+        <div class="message bot">
+          <div class="avatar">🤖</div>
+          <div class="content">
+            <p>你好！我是 AI 助手。我可以帮你分析邮件内容、回答问题或提供建议。有什么我可以帮你的吗？</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <textarea id="user-input" placeholder="输入消息，或询问关于邮件的问题..." rows="1"></textarea>
+        <button id="send-btn">发送</button>
+      </div>
     </div>
   </div>
 
