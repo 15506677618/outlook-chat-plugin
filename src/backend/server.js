@@ -19,11 +19,44 @@ const SILICONFLOW_API_URL = 'https://api.siliconflow.cn/v1/chat/completions';
 const SILICONFLOW_API_KEY = process.env.SILICONFLOW_API_KEY || 'YOUR_API_KEY';
 const SILICONFLOW_MODEL = 'Pro/zai-org/GLM-4.7';
 
-app.use(cors());
+// 访问控制配置
+const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || 'koudai123';
+
+// 简单的密码保护中间件
+function requirePassword(req, res, next) {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ 
+      error: '需要访问密码',
+      message: '请在请求头中提供 Authorization: Bearer <密码>'
+    });
+  }
+  
+  const token = authHeader.substring(7);
+  
+  if (token !== ACCESS_PASSWORD) {
+    return res.status(403).json({ 
+      error: '访问被拒绝',
+      message: '密码错误'
+    });
+  }
+  
+  next();
+}
+
+// CORS 配置 - 允许所有来源但限制某些操作
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 app.use(express.static(join(__dirname, '..', '..', 'dist')));
 
-app.post('/api/chat', async (req, res) => {
+// 受保护的 API 接口
+app.post('/api/chat', requirePassword, async (req, res) => {
   const { messages, userMessage } = req.body;
 
   try {

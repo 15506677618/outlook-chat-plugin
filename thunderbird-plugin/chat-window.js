@@ -1,6 +1,7 @@
 // Chat window script
 
 const API_URL = 'https://koudai.xin/api/chat';
+const ACCESS_PASSWORD = 'koudai123'; // 访问密码
 
 // DOM 元素
 const emailFromEl = document.getElementById('email-from');
@@ -216,6 +217,7 @@ async function sendMessage() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ACCESS_PASSWORD}`
       },
       body: JSON.stringify({
         messages: messagesToSend,
