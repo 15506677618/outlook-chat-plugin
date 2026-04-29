@@ -76,14 +76,25 @@ function displayEmail(email) {
 }
 
 function formatMessage(content) {
+  // 如果内容已经包含 HTML 标签，直接返回
+  if (/<[a-z][\s\S]*>/i.test(content)) {
+    return content;
+  }
+  
+  // 将 ### 标题 转换为 <h3>标题</h3>
+  let formatted = content.replace(/###\s+(.+?)(?=\n|$)/g, '<h3 style="margin: 12px 0 8px 0; color: #333; font-size: 15px;">$1</h3>');
+  
+  // 将 ## 标题 转换为 <h2>标题</h2>
+  formatted = formatted.replace(/##\s+(.+?)(?=\n|$)/g, '<h2 style="margin: 14px 0 10px 0; color: #333; font-size: 16px;">$1</h2>');
+  
+  // 将 # 标题 转换为 <h1>标题</h1>
+  formatted = formatted.replace(/#\s+(.+?)(?=\n|$)/g, '<h1 style="margin: 16px 0 12px 0; color: #333; font-size: 18px;">$1</h1>');
+  
   // 将 **文本** 转换为 <strong>文本</strong>
-  let formatted = content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong style="color: #333;">$1</strong>');
   
   // 将换行符转换为 <br>
   formatted = formatted.replace(/\n/g, '<br>');
-  
-  // 将列表项（以数字. 或 - 开头）转换为 <li>
-  formatted = formatted.replace(/^(\d+\.|\-)\s+(.+)$/gm, '<li>$2</li>');
   
   return formatted;
 }

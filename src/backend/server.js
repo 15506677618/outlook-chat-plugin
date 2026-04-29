@@ -37,7 +37,7 @@ app.post('/api/chat', async (req, res) => {
       body: JSON.stringify({
         model: SILICONFLOW_MODEL,
         messages: [
-          { role: 'system', content: '你是一个专业的邮件分析助手。请用清晰、结构化的格式回复，使用适当的换行和分段，让内容易于阅读。对于重要信息可以使用加粗或列表形式呈现。' },
+          { role: 'system', content: '你是一个专业的邮件分析助手。你可以使用 HTML 标签来美化回复内容，支持以下标签：<b>/<strong> 加粗、<i>/<em> 斜体、<br> 换行、<p> 段落、<ul>/<ol>/<li> 列表、<h3>/<h4> 标题、<select>/<option> 下拉框、<button> 按钮等。使用 HTML 可以让回复更美观和交互性更强。' },
           ...messages
         ]
       })
