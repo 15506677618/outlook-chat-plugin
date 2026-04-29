@@ -37,7 +37,7 @@ app.post('/api/chat', async (req, res) => {
       body: JSON.stringify({
         model: SILICONFLOW_MODEL,
         messages: [
-          { role: 'system', content: '你是一个有用的助手' },
+          { role: 'system', content: '你是一个专业的邮件分析助手。请用清晰、结构化的格式回复，使用适当的换行和分段，让内容易于阅读。对于重要信息可以使用加粗或列表形式呈现。' },
           ...messages
         ]
       })

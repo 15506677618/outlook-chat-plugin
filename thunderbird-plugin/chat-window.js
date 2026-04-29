@@ -75,6 +75,19 @@ function displayEmail(email) {
   }
 }
 
+function formatMessage(content) {
+  // 将 **文本** 转换为 <strong>文本</strong>
+  let formatted = content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  
+  // 将换行符转换为 <br>
+  formatted = formatted.replace(/\n/g, '<br>');
+  
+  // 将列表项（以数字. 或 - 开头）转换为 <li>
+  formatted = formatted.replace(/^(\d+\.|\-)\s+(.+)$/gm, '<li>$2</li>');
+  
+  return formatted;
+}
+
 function addMessage(content, isUser = false) {
   const messageDiv = document.createElement('div');
   messageDiv.className = `message ${isUser ? 'user' : 'bot'}`;
@@ -87,7 +100,9 @@ function addMessage(content, isUser = false) {
   contentDiv.className = 'content';
   
   const paragraph = document.createElement('p');
-  paragraph.innerHTML = content;
+  paragraph.innerHTML = formatMessage(content);
+  paragraph.style.whiteSpace = 'pre-wrap';
+  paragraph.style.wordWrap = 'break-word';
   
   contentDiv.appendChild(paragraph);
   messageDiv.appendChild(avatar);
