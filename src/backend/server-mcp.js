@@ -339,6 +339,99 @@ app.get('/', (req, res) => {
   res.sendFile(join(__dirname, '..', '..', 'dist', 'chat.html'));
 });
 
+// 流式聊天接口
+app.post('/api/chat/stream', async (req, res) => {
+  const { messages, userMessage } = req.body;
+
+  try {
+    // 获取 MCP 工具描述
+    const mcpDescription = await generateMCPDescription();
+
+    // 构建系统提示
+    const systemPrompt = `你是一个专业的邮件分析助手，同时也是一个货运物流专家。你可以使用 HTML 标签来美化回复内容。
+
+你可以：
+1. 分析邮件内容，提取关键信息
+2. 回答关于货运、物流的问题
+3. 使用 MCP 工具获取实时数据${mcpDescription}
+
+使用 HTML 标签让回复更美观：<b>加粗</b>、<br>换行、<p>段落、<ul>/<li>列表等。`;
+
+    // 设置 SSE 响应头
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // 调用 AI（流式）
+    const response = await fetch(SILICONFLOW_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SILICONFLOW_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: SILICONFLOW_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...messages
+        ],
+        stream: true
+      })
+    });
+
+    if (!response.ok) {
+      res.write(`data: ${JSON.stringify({ error: `AI API 错误：${response.status}` })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter(l => l.trim());
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              res.write('data: [DONE]\n\n');
+              res.end();
+              return;
+            }
+            try {
+              const json = JSON.parse(data);
+              const content = json.choices?.[0]?.delta?.content || '';
+              if (content) {
+                res.write(`data: ${JSON.stringify({ content })}\n\n`);
+              }
+            } catch (e) {
+              // 忽略解析错误
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Stream error:', err);
+    }
+
+    res.write('data: [DONE]\n\n');
+    res.end();
+
+  } catch (error) {
+    console.error('Chat 错误:', error);
+    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    res.write('data: [DONE]\n\n');
+    res.end();
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 服务器运行在 http://localhost:${PORT}`);
   console.log(`📱 聊天页面：http://localhost:${PORT}/chat.html`);

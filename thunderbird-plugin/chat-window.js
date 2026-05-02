@@ -1,7 +1,13 @@
 // Chat window script
 
-// API URL 配置
-const API_URL = 'https://koudai.xin/api/chat';
+// API URL 配置 - 使用流式接口
+function getAPIUrl() {
+  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    return '/api/chat/stream'; // 生产环境使用相对路径
+  }
+  return 'http://localhost:3000/api/chat/stream'; // 开发环境
+}
+const API_URL = getAPIUrl();
 const ACCESS_PASSWORD = 'koudai123'; // 访问密码 - 注意：客户端密码仅用于简单验证，生产环境应使用更安全的方式
 
 // DOM 元素
@@ -454,9 +460,24 @@ function setupEventListeners() {
   // 快捷键按钮事件
   quickButtons.forEach(btn => {
     if (btn.id === 'inquiry-list-btn') return; // 跳过询价列表按钮
+    
     btn.addEventListener('click', () => {
       const text = btn.getAttribute('data-text');
-      userInput.value = text;
+      
+      // 特殊处理：添加报价信息按钮需要绑定供应商
+      if (text === '添加报价信息') {
+        // 让用户输入供应商信息（可以是ID或名称）
+        const supplierInfo = prompt('请输入供应商ID或名称（留空则稍后指定）：');
+        let finalText = text;
+        if (supplierInfo && supplierInfo.trim()) {
+          finalText += `，供应商：${supplierInfo.trim()}`;
+        }
+        finalText += '，请帮我从邮件中提取报价信息并添加，需要绑定供应商';
+        userInput.value = finalText;
+      } else {
+        userInput.value = text;
+      }
+      
       userInput.focus();
       userInput.style.height = 'auto';
       userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
