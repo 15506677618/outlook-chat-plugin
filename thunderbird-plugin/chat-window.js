@@ -309,7 +309,7 @@ function closeInquiryPanel() {
 }
 
 // MCP 服务地址（通过主服务代理）
-const MCP_API_URL = 'https://koudai.xin/api/mcp';
+const MCP_API_URL = 'https://koudai.xin/api';
 
 async function loadInquiryList(keyword = '') {
   try {
