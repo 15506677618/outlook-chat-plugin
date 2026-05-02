@@ -33,7 +33,9 @@ npm install
 
 # 配置环境变量
 cp .env.example .env
-nano .env  # 填入 SILICONFLOW_API_KEY
+nano .env  # 填入以下配置：
+# SILICONFLOW_API_KEY=your_api_key
+# ACCESS_PASSWORD=your_password  # 访问密码，用于保护API
 
 # 构建前端
 npm run build
@@ -73,24 +75,41 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl restart nginx
 ```
 
-### 3. 安装 SSL 证书（推荐）
+### 3. 启动 MCP 服务器（可选）
+
+如果需要使用 MCP 功能（询价/报价管理）：
+
+```bash
+cd /var/www/outlook-chat-plugin/mcp-server
+npm install
+
+# 使用 PM2 启动 MCP 服务器
+pm2 start http-server.js --name mcp-server
+pm2 save
+```
+
+### 4. 安装 SSL 证书（推荐）
 
 ```bash
 apt install -y certbot python3-certbot-nginx
 certbot --nginx -d koudai.xin -d www.koudai.xin
 ```
 
-### 4. 验证部署
+### 5. 验证部署
 
 ```bash
 # 检查服务状态
 pm2 list
 systemctl status nginx
 
-# 测试 API
+# 测试 API（带密码）
 curl http://localhost:3000/api/chat \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_password" \
   -d '{"messages": [{"role": "user", "content": "测试"}], "userMessage": "测试"}'
+
+# 测试 MCP 服务
+curl http://localhost:3001/mcp/tools
 ```
 
 ## 常用命令
