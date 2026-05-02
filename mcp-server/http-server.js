@@ -1,5 +1,11 @@
 import express from 'express';
 import cors from 'cors';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 app.use(cors());
@@ -7,8 +13,11 @@ app.use(express.json());
 
 const PORT = 3001;
 
-// Mock 数据存储
-const mockData = {
+// 数据文件路径
+const DATA_FILE = join(__dirname, 'data.json');
+
+// 默认数据
+const defaultData = {
   shipments: [
     { id: 'SH001', from: 'Shanghai', to: 'Los Angeles', status: 'In Transit', eta: '2024-05-20' },
     { id: 'SH002', from: 'Shenzhen', to: 'Rotterdam', status: 'Delivered', eta: '2024-05-15' },
@@ -31,16 +40,34 @@ const mockData = {
     { id: 'S004', name: '青岛海丰物流', contact: '赵经理', phone: '13600136004', email: 'zhao@haifeng-logistics.com', address: '青岛市黄岛区', products: ['海运', '拼箱', '报关'], rating: 4.6 },
     { id: 'S005', name: '厦门联合航运', contact: '陈主管', phone: '13500135005', email: 'chen@unishipping.com', address: '厦门市湖里区', products: ['海运', '空运', '货运代理'], rating: 4.7 },
   ],
-  inquiries: [
-    { id: 'INQ-2024-001', emailId: 'email-001', emailSubject: '询价：上海到洛杉矶电子产品', emailContent: '客户询价邮件原文...', inquiryDate: '2024-05-10', pol: 'Shanghai', pod: 'Los Angeles', cargoName: 'Electronics', containerType: '1x40HQ', volume: 60, weight: 18000, etd: '2024-06-01', specialRequirements: '需要温控', createdAt: '2024-05-10T10:00:00Z' },
-    { id: 'INQ-2024-002', emailId: 'email-002', emailSubject: '询价：深圳到鹿特丹机械设备', emailContent: '客户询价邮件原文...', inquiryDate: '2024-05-12', pol: 'Shenzhen', pod: 'Rotterdam', cargoName: 'Machinery', containerType: '2x20GP', volume: 40, weight: 24000, etd: '2024-06-15', specialRequirements: '', createdAt: '2024-05-12T14:30:00Z' },
-  ],
-  quotations: [
-    { id: 'QUO-2024-001', inquiryId: 'INQ-2024-001', supplierId: 'S001', supplierName: '上海远洋物流', emailId: 'email-003', quoteDate: '2024-05-11', pol: 'Shanghai', pod: 'Los Angeles', ofRate: 3200, localCharges: 450, containerType: '1x40HQ', validDate: '2024-06-30', transitTime: '14 days', vesselName: 'MSC Leo', remarks: '价格最优' },
-    { id: 'QUO-2024-002', inquiryId: 'INQ-2024-001', supplierId: 'S003', supplierName: '宁波港务集团', emailId: 'email-004', quoteDate: '2024-05-12', pol: 'Shanghai', pod: 'Los Angeles', ofRate: 3350, localCharges: 420, containerType: '1x40HQ', validDate: '2024-06-25', transitTime: '16 days', vesselName: 'COSCO Star', remarks: '' },
-    { id: 'QUO-2024-003', inquiryId: 'INQ-2024-001', supplierId: 'S005', supplierName: '厦门联合航运', emailId: 'email-005', quoteDate: '2024-05-13', pol: 'Shanghai', pod: 'Los Angeles', ofRate: 3500, localCharges: 480, containerType: '1x40HQ', validDate: '2024-07-05', transitTime: '15 days', vesselName: 'MSK Ocean', remarks: '' },
-  ]
+  inquiries: [],
+  quotations: []
 };
+
+// 加载数据
+function loadData() {
+  try {
+    if (existsSync(DATA_FILE)) {
+      const data = readFileSync(DATA_FILE, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error('加载数据失败:', error);
+  }
+  return defaultData;
+}
+
+// 保存数据
+function saveData(data) {
+  try {
+    writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+  } catch (error) {
+    console.error('保存数据失败:', error);
+  }
+}
+
+// 初始化数据
+const mockData = loadData();
 
 // 工具定义
 const tools = [
@@ -133,52 +160,6 @@ const tools = [
     }
   },
   {
-    name: 'get_supplier_info',
-    description: '获取供应商信息',
-    parameters: {
-      supplierId: { type: 'string', description: '供应商ID' },
-    },
-    handler: ({ supplierId }) => {
-      const supplier = mockData.suppliers.find(s => s.id === supplierId);
-      if (!supplier) return { error: `未找到供应商: ${supplierId}` };
-      return supplier;
-    }
-  },
-  {
-    name: 'list_all_suppliers',
-    description: '列出所有供应商',
-    parameters: {},
-    handler: () => mockData.suppliers
-  },
-  {
-    name: 'search_suppliers_by_product',
-    description: '按产品/服务搜索供应商',
-    parameters: {
-      product: { type: 'string', description: '产品/服务名称' },
-    },
-    handler: ({ product }) => {
-      const results = mockData.suppliers.filter(s => 
-        s.products.some(p => p.includes(product))
-      );
-      if (results.length === 0) return { error: `未找到提供 ${product} 的供应商` };
-      return results;
-    }
-  },
-  {
-    name: 'get_top_rated_suppliers',
-    description: '获取评分最高的供应商',
-    parameters: {
-      minRating: { type: 'number', description: '最低评分 (默认4.5)', default: 4.5 },
-    },
-    handler: ({ minRating }) => {
-      const rating = minRating || 4.5;
-      const results = mockData.suppliers
-        .filter(s => s.rating >= rating)
-        .sort((a, b) => b.rating - a.rating);
-      return results;
-    }
-  },
-  {
     name: 'add_inquiry_record',
     description: '添加询价记录',
     parameters: {
@@ -204,6 +185,7 @@ const tools = [
         createdAt: new Date().toISOString()
       };
       mockData.inquiries.push(newInquiry);
+      saveData(mockData);
       return { 
         success: true, 
         inquiryId: id, 
@@ -216,10 +198,11 @@ const tools = [
     name: 'add_quotation_record',
     description: '添加报价记录',
     parameters: {
-      inquiryId: { type: 'string', description: '关联询价单号' },
+      inquiryId: { type: 'string', description: '关联询价单号（必须）' },
       supplierId: { type: 'string', description: '供应商ID' },
       supplierName: { type: 'string', description: '供应商名称' },
       emailId: { type: 'string', description: '邮件ID' },
+      emailContent: { type: 'string', description: '邮件原文' },
       quoteDate: { type: 'string', description: '报价日期' },
       pol: { type: 'string', description: '起运港' },
       pod: { type: 'string', description: '目的港' },
@@ -233,16 +216,44 @@ const tools = [
     },
     handler: (params) => {
       const inquiry = mockData.inquiries.find(i => i.id === params.inquiryId);
-      if (!inquiry) return { error: `未找到询价单: ${params.inquiryId}` };
-      
-      const supplier = mockData.suppliers.find(s => s.id === params.supplierId);
-      if (!supplier && params.supplierId) return { error: `未找到供应商: ${params.supplierId}` };
+      if (!inquiry) {
+        return { error: `未找到询价单: ${params.inquiryId}` };
+      }
       
       const year = new Date().getFullYear();
       const id = `QUO-${year}-${String(mockData.quotations.length + 1).padStart(3, '0')}`;
-      const newQuotation = { id, ...params };
+      const newQuotation = { 
+        id, 
+        ...params,
+        createdAt: new Date().toISOString()
+      };
       mockData.quotations.push(newQuotation);
-      return { success: true, quotationId: id, message: `报价记录已添加: ${id}`, linkedInquiry: params.inquiryId };
+      saveData(mockData);
+      return { 
+        success: true, 
+        quotationId: id, 
+        message: `报价记录已添加: ${id}`,
+        quotation: newQuotation
+      };
+    }
+  },
+  {
+    name: 'get_quotations_by_inquiry',
+    description: '获取询价的所有报价（1:N 查询）',
+    parameters: {
+      inquiryId: { type: 'string', description: '询价单号' },
+    },
+    handler: ({ inquiryId }) => {
+      const inquiry = mockData.inquiries.find(i => i.id === inquiryId);
+      if (!inquiry) {
+        return { error: `未找到询价单: ${inquiryId}` };
+      }
+      const quotations = mockData.quotations.filter(q => q.inquiryId === inquiryId);
+      return {
+        inquiry,
+        quotations,
+        count: quotations.length
+      };
     }
   },
   {
@@ -256,58 +267,20 @@ const tools = [
       let results = mockData.suppliers;
       
       if (keyword) {
+        const lowerKeyword = keyword.toLowerCase();
         results = results.filter(s => 
-          s.name.includes(keyword) || 
-          s.email.includes(keyword) || 
-          s.phone.includes(keyword) ||
-          s.contact.includes(keyword)
+          s.name.toLowerCase().includes(lowerKeyword) ||
+          s.email.toLowerCase().includes(lowerKeyword) ||
+          s.contact.toLowerCase().includes(lowerKeyword) ||
+          s.phone.includes(keyword)
         );
       }
       
       if (emailDomain) {
-        results = results.filter(s => s.email.includes(emailDomain));
+        results = results.filter(s => s.email.endsWith(`@${emailDomain}`));
       }
       
-      if (results.length === 0) return { error: `未找到匹配的供应商` };
-      return results;
-    }
-  },
-  {
-    name: 'get_quotations_by_inquiry',
-    description: '获取询价的所有报价',
-    parameters: {
-      inquiryId: { type: 'string', description: '询价单号' },
-    },
-    handler: ({ inquiryId }) => {
-      const inquiry = mockData.inquiries.find(i => i.id === inquiryId);
-      if (!inquiry) return { error: `未找到询价单: ${inquiryId}` };
-      
-      const quotations = mockData.quotations.filter(q => q.inquiryId === inquiryId);
-      return { inquiry, quotations, count: quotations.length };
-    }
-  },
-  {
-    name: 'get_quotations_by_supplier',
-    description: '获取供应商的所有报价',
-    parameters: {
-      supplierId: { type: 'string', description: '供应商ID' },
-      pol: { type: 'string', description: '起运港（可选）' },
-      pod: { type: 'string', description: '目的港（可选）' },
-    },
-    handler: ({ supplierId, pol, pod }) => {
-      const supplier = mockData.suppliers.find(s => s.id === supplierId);
-      if (!supplier) return { error: `未找到供应商: ${supplierId}` };
-      
-      let quotations = mockData.quotations.filter(q => q.supplierId === supplierId);
-      
-      if (pol) {
-        quotations = quotations.filter(q => q.pol === pol);
-      }
-      if (pod) {
-        quotations = quotations.filter(q => q.pod === pod);
-      }
-      
-      return { supplier, quotations, count: quotations.length };
+      return { suppliers: results, count: results.length };
     }
   },
 ];
@@ -379,4 +352,5 @@ app.listen(PORT, () => {
   console.log(`🚀 Mock MCP HTTP Server running on http://localhost:${PORT}`);
   console.log(`📋 工具列表: http://localhost:${PORT}/mcp/tools`);
   console.log(`📦 货运订单: http://localhost:${PORT}/mcp/resources/shipments`);
+  console.log(`💾 数据文件: ${DATA_FILE}`);
 });
