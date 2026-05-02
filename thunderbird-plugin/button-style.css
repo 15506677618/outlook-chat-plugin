@@ -1,0 +1,12 @@
+#ai-mail-assistant_koudai_xin-messageDisplayAction-toolbarbutton .toolbarbutton-icon {
+    opacity: 1 !important;
+    filter: none !important;
+    mask-image: none !important;
+    list-style-image: url("icons/icon-v2-16.png") !important;
+}
+
+@media (min-resolution: 2dppx) {
+    #ai-mail-assistant_koudai_xin-messageDisplayAction-toolbarbutton .toolbarbutton-icon {
+        list-style-image: url("icons/icon-v2-32.png") !important;
+    }
+}

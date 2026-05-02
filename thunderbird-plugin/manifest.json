@@ -20,15 +20,45 @@
   "message_display_action": {
     "default_title": "AI 邮件助手",
     "default_icon": {
-      "16": "icons/icon-16.png",
-      "32": "icons/icon-32.png",
-      "48": "icons/icon-32.png"
-    }
+      "16": "icons/icon-v2-16.png",
+      "32": "icons/icon-v2-32.png"
+    },
+    "theme_icons": [
+      {
+        "light": "icons/icon-v2-16.png",
+        "dark": "icons/icon-v2-32.png",
+        "size": 16
+      },
+      {
+        "light": "icons/icon-v2-32.png",
+        "dark": "icons/icon-v2-32.png",
+        "size": 32
+      }
+    ]
+  },
+  "compose_action": {
+    "default_title": "邮件询价",
+    "default_icon": {
+      "16": "icons/icon-v2-16.png",
+      "32": "icons/icon-v2-32.png"
+    },
+    "theme_icons": [
+      {
+        "light": "icons/icon-v2-16.png",
+        "dark": "icons/icon-v2-32.png",
+        "size": 16
+      },
+      {
+        "light": "icons/icon-v2-32.png",
+        "dark": "icons/icon-v2-32.png",
+        "size": 32
+      }
+    ]
   },
   "icons": {
-    "16": "icons/icon-16.png",
-    "32": "icons/icon-32.png",
-    "48": "icons/icon-32.png",
-    "128": "icons/icon-80.png"
+    "16": "icons/icon-v2-16.png",
+    "32": "icons/icon-v2-32.png",
+    "48": "icons/icon-v2-80.png",
+    "128": "icons/icon-v2-80.png"
   }
 }
