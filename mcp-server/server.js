@@ -258,6 +258,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: 'search_inquiry',
+        description: '搜索询价记录',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            keyword: { type: 'string', description: '搜索关键词（客户名/询价单号/货物品名）' },
+            pol: { type: 'string', description: '起运港（可选）' },
+            pod: { type: 'string', description: '目的港（可选）' },
+          },
+        },
+      },
+      {
         name: 'get_quotations_by_inquiry',
         description: '获取询价的所有报价',
         inputSchema: {
@@ -497,6 +509,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         ).join('\n');
         return {
           content: [{ type: 'text', text: `搜索结果:\n${list}` }],
+        };
+      }
+
+      case 'search_inquiry': {
+        let results = mockData.inquiries;
+        
+        if (args.keyword) {
+          results = results.filter(i => 
+            i.id.includes(args.keyword) || 
+            i.customerName.includes(args.keyword) || 
+            i.cargoName.includes(args.keyword) ||
+            i.pol.includes(args.keyword) ||
+            i.pod.includes(args.keyword)
+          );
+        }
+        
+        if (args.pol) {
+          results = results.filter(i => i.pol && i.pol.includes(args.pol));
+        }
+        
+        if (args.pod) {
+          results = results.filter(i => i.pod && i.pod.includes(args.pod));
+        }
+        
+        if (results.length === 0) {
+          return {
+            content: [{ type: 'text', text: `未找到匹配的询价记录` }],
+            isError: true,
+          };
+        }
+        
+        const list = results.map(i => 
+          `${i.id}: ${i.customerName} - ${i.pol}→${i.pod} - ${i.cargoName} (${i.containerType})`
+        ).join('\n');
+        return {
+          content: [{ type: 'text', text: `询价搜索结果:\n${list}` }],
         };
       }
 

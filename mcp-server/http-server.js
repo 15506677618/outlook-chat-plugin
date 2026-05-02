@@ -294,6 +294,39 @@ const tools = [
       return { suppliers: results, count: results.length };
     }
   },
+  {
+    name: 'search_inquiry',
+    description: '搜索询价记录',
+    parameters: {
+      keyword: { type: 'string', description: '搜索关键词（客户名/询价单号/货物品名/路线）' },
+      pol: { type: 'string', description: '起运港（可选）' },
+      pod: { type: 'string', description: '目的港（可选）' },
+    },
+    handler: ({ keyword, pol, pod }) => {
+      let results = mockData.inquiries;
+      
+      if (keyword) {
+        const lowerKeyword = keyword.toLowerCase();
+        results = results.filter(i => 
+          (i.id && i.id.toLowerCase().includes(lowerKeyword)) ||
+          (i.customerName && i.customerName.toLowerCase().includes(lowerKeyword)) ||
+          (i.cargoName && i.cargoName.toLowerCase().includes(lowerKeyword)) ||
+          (i.pol && i.pol.toLowerCase().includes(lowerKeyword)) ||
+          (i.pod && i.pod.toLowerCase().includes(lowerKeyword))
+        );
+      }
+      
+      if (pol) {
+        results = results.filter(i => i.pol && i.pol.includes(pol));
+      }
+      
+      if (pod) {
+        results = results.filter(i => i.pod && i.pod.includes(pod));
+      }
+      
+      return { inquiries: results, count: results.length };
+    }
+  },
 ];
 
 // API 路由

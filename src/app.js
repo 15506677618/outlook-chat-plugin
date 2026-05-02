@@ -5,9 +5,20 @@ const messagesContainer = document.getElementById('messages');
 const userInput = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-btn');
 
+// 搜索弹窗元素
+const searchModal = document.getElementById('search-modal');
+const modalTitle = document.getElementById('modal-title');
+const searchInput = document.getElementById('search-input');
+const searchResults = document.getElementById('search-results');
+const modalClose = document.getElementById('modal-close');
+const modalCancel = document.getElementById('modal-cancel');
+
 // 状态
 let conversationHistory = [];
 let currentEmail = null;
+let currentSearchType = ''; // 'inquiry' 或 'supplier'
+let currentSearchResolve = null;
+let searchDebounceTimer = null;
 
 // 监听来自 Thunderbird 插件的邮件数据
 window.addEventListener('message', (event) => {
@@ -200,6 +211,116 @@ if (loadEmailBtn) {
     }
   });
 }
+
+// 搜索弹窗相关函数
+function openSearchModal(type, title) {
+  return new Promise((resolve) => {
+    currentSearchType = type;
+    currentSearchResolve = resolve;
+    modalTitle.textContent = title;
+    searchInput.value = '';
+    searchResults.innerHTML = '<div style="color:#999;text-align:center;padding:20px;">请输入关键词搜索</div>';
+    searchModal.style.display = 'flex';
+    searchInput.focus();
+  });
+}
+
+function closeSearchModal() {
+  searchModal.style.display = 'none';
+  currentSearchResolve = null;
+  currentSearchType = '';
+}
+
+async function performSearch(keyword) {
+  if (!keyword.trim()) {
+    searchResults.innerHTML = '<div style="color:#999;text-align:center;padding:20px;">请输入关键词搜索</div>';
+    return;
+  }
+
+  try {
+    const toolName = currentSearchType === 'inquiry' ? 'search_inquiry' : 'search_supplier';
+    const response = await fetch('/api/mcp/call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tool: toolName,
+        parameters: { keyword }
+      })
+    });
+
+    const data = await response.json();
+    const result = data.result || {};
+    
+    // 根据搜索类型获取结果列表
+    const items = currentSearchType === 'inquiry' ? (result.inquiries || []) : (result.suppliers || []);
+    
+    if (!items.length) {
+      searchResults.innerHTML = '<div style="color:#999;text-align:center;padding:20px;">未找到匹配结果</div>';
+      return;
+    }
+
+    searchResults.innerHTML = items.map(item => {
+      if (currentSearchType === 'inquiry') {
+        return `<div class="search-result-item" data-id="${item.id}">
+          <div class="item-title">${item.id}</div>
+          <div class="item-desc">${item.customerName} - ${item.pol || ''}→${item.pod || ''} - ${item.cargoName || ''} (${item.containerType || ''})</div>
+        </div>`;
+      } else {
+        return `<div class="search-result-item" data-id="${item.id}">
+          <div class="item-title">${item.name}</div>
+          <div class="item-desc">${item.contact} - ${item.email}</div>
+        </div>`;
+      }
+    }).join('');
+
+    // 添加点击事件
+    searchResults.querySelectorAll('.search-result-item').forEach(item => {
+      item.addEventListener('click', () => {
+        searchResults.querySelectorAll('.search-result-item').forEach(i => i.classList.remove('selected'));
+        item.classList.add('selected');
+        const id = item.dataset.id;
+        const title = item.querySelector('.item-title').textContent;
+        currentSearchResolve({ id, title });
+        closeSearchModal();
+      });
+    });
+
+  } catch (error) {
+    searchResults.innerHTML = `<div style="color:#f44336;text-align:center;padding:20px;">搜索失败: ${error.message}</div>`;
+  }
+}
+
+// 搜索输入防抖
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    performSearch(searchInput.value);
+  }, 300);
+});
+
+// 关闭弹窗事件
+modalClose.addEventListener('click', closeSearchModal);
+modalCancel.addEventListener('click', () => {
+  currentSearchResolve && currentSearchResolve(null);
+  closeSearchModal();
+});
+
+// ESC 关闭弹窗
+searchModal.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeSearchModal();
+});
+
+// 点击遮罩关闭
+searchModal.addEventListener('click', (e) => {
+  if (e.target === searchModal) {
+    currentSearchResolve && currentSearchResolve(null);
+    closeSearchModal();
+  }
+});
+
+// 导出搜索函数供外部调用
+window.searchInquiry = () => openSearchModal('inquiry', '搜索询价记录');
+window.searchSupplier = () => openSearchModal('supplier', '搜索供应商');
 
 // 初始化
 userInput.focus();
