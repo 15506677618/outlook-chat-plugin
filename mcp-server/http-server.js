@@ -32,8 +32,8 @@ const mockData = {
     { id: 'S005', name: '厦门联合航运', contact: '陈主管', phone: '13500135005', email: 'chen@unishipping.com', address: '厦门市湖里区', products: ['海运', '空运', '货运代理'], rating: 4.7 },
   ],
   inquiries: [
-    { id: 'INQ-2024-001', customerId: 'C001', customerName: 'ABC Trading', emailId: 'email-001', emailSubject: '询价：上海到洛杉矶电子产品', emailContent: '客户询价邮件原文...', inquiryDate: '2024-05-10', pol: 'Shanghai', pod: 'Los Angeles', cargoName: 'Electronics', containerType: '1x40HQ', volume: 60, weight: 18000, etd: '2024-06-01', specialRequirements: '需要温控', createdAt: '2024-05-10T10:00:00Z' },
-    { id: 'INQ-2024-002', customerId: 'C002', customerName: 'XYZ Logistics', emailId: 'email-002', emailSubject: '询价：深圳到鹿特丹机械设备', emailContent: '客户询价邮件原文...', inquiryDate: '2024-05-12', pol: 'Shenzhen', pod: 'Rotterdam', cargoName: 'Machinery', containerType: '2x20GP', volume: 40, weight: 24000, etd: '2024-06-15', specialRequirements: '', createdAt: '2024-05-12T14:30:00Z' },
+    { id: 'INQ-2024-001', emailId: 'email-001', emailSubject: '询价：上海到洛杉矶电子产品', emailContent: '客户询价邮件原文...', inquiryDate: '2024-05-10', pol: 'Shanghai', pod: 'Los Angeles', cargoName: 'Electronics', containerType: '1x40HQ', volume: 60, weight: 18000, etd: '2024-06-01', specialRequirements: '需要温控', createdAt: '2024-05-10T10:00:00Z' },
+    { id: 'INQ-2024-002', emailId: 'email-002', emailSubject: '询价：深圳到鹿特丹机械设备', emailContent: '客户询价邮件原文...', inquiryDate: '2024-05-12', pol: 'Shenzhen', pod: 'Rotterdam', cargoName: 'Machinery', containerType: '2x20GP', volume: 40, weight: 24000, etd: '2024-06-15', specialRequirements: '', createdAt: '2024-05-12T14:30:00Z' },
   ],
   quotations: [
     { id: 'QUO-2024-001', inquiryId: 'INQ-2024-001', supplierId: 'S001', supplierName: '上海远洋物流', emailId: 'email-003', quoteDate: '2024-05-11', pol: 'Shanghai', pod: 'Los Angeles', ofRate: 3200, localCharges: 450, containerType: '1x40HQ', validDate: '2024-06-30', transitTime: '14 days', vesselName: 'MSC Leo', remarks: '价格最优' },
@@ -182,8 +182,6 @@ const tools = [
     name: 'add_inquiry_record',
     description: '添加询价记录',
     parameters: {
-      customerId: { type: 'string', description: '客户ID' },
-      customerName: { type: 'string', description: '客户名称' },
       emailId: { type: 'string', description: '邮件ID' },
       emailSubject: { type: 'string', description: '邮件主题' },
       emailContent: { type: 'string', description: '邮件原文内容' },
