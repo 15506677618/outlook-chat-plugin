@@ -6,6 +6,37 @@ browser.runtime.onInstalled.addListener(() => {
   console.log('AI 邮件助手已安装');
 });
 
+// 监听来自聊天窗口的消息
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('收到消息:', message);
+  
+  if (message.type === 'getEmailContent') {
+    // 获取当前显示的邮件
+    browser.messageDisplay.getDisplayedMessage(sender.tab.id).then(message => {
+      if (message) {
+        getEmailConversation(message.id).then(conversation => {
+          sendResponse({
+            type: 'emailContent',
+            subject: message.subject || '无主题',
+            from: formatAuthor(message.author),
+            date: formatDate(message.date),
+            conversation: conversation
+          });
+        }).catch(error => {
+          console.error('获取邮件会话失败:', error);
+          sendResponse({ type: 'error', message: '获取邮件失败' });
+        });
+      } else {
+        sendResponse({ type: 'error', message: '没有打开的邮件' });
+      }
+    }).catch(error => {
+      console.error('获取邮件失败:', error);
+      sendResponse({ type: 'error', message: error.message });
+    });
+    return true; // 保持消息通道开放，异步返回
+  }
+});
+
 // 获取邮件内容（回复邮件中已包含原始邮件的引用）
 async function getEmailConversation(messageId) {
   try {

@@ -165,5 +165,41 @@ userInput.addEventListener('keydown', handleKeyPress);
 userInput.addEventListener('input', autoResize);
 sendBtn.addEventListener('click', sendMessage);
 
+// 加载邮件按钮处理
+const loadEmailBtn = document.getElementById('load-email-btn');
+if (loadEmailBtn) {
+  loadEmailBtn.addEventListener('click', async () => {
+    // 检查是否在 Thunderbird 扩展环境中
+    if (typeof browser !== 'undefined' && browser.runtime) {
+      // Thunderbird 环境 - 请求 background.js 获取当前邮件
+      browser.runtime.sendMessage({ type: 'getEmailContent' }).then(response => {
+        if (response && response.content) {
+          currentEmail = response.content;
+          addMessage(`📧 **已加载邮件**
+
+**主题：** ${currentEmail.subject || '-'}
+**发件人：** ${currentEmail.from || '-'}
+**日期：** ${currentEmail.date || '-'}
+
+您可以询问我关于这封邮件的任何问题！`, false);
+        } else {
+          addMessage('⚠️ 当前没有打开的邮件，请在Thunderbird中选择一封邮件。', false);
+        }
+      }).catch(error => {
+        addMessage(`❌ 加载邮件失败：${error.message}`, false);
+      });
+    } else {
+      // Web 环境 - 提示用户或加载示例邮件
+      addMessage(`📧 **演示模式**
+
+这是 Web 演示版本。在 Thunderbird 中使用时，可以自动加载当前查看的邮件。
+
+您可以尝试询问：
+- "帮我分析当前邮件"
+- "提取邮件中的关键信息"`, false);
+    }
+  });
+}
+
 // 初始化
 userInput.focus();

@@ -1,7 +1,17 @@
 // Chat window script
 
-const API_URL = 'https://koudai.xin/api/chat';
-const ACCESS_PASSWORD = 'koudai123'; // 访问密码
+// API URL 配置：优先使用环境变量，否则根据环境自动判断
+function getAPIUrl() {
+  // 生产环境
+  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    return '/api/chat';
+  }
+  // 开发环境 - 默认本地后端
+  return 'http://localhost:3000/api/chat';
+}
+
+const API_URL = getAPIUrl();
+const ACCESS_PASSWORD = 'koudai123'; // 访问密码 - 注意：客户端密码仅用于简单验证，生产环境应使用更安全的方式
 
 // DOM 元素
 const emailFromEl = document.getElementById('email-from');

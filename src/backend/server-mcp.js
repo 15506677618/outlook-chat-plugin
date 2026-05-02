@@ -2,8 +2,13 @@ import express from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+
+// 为 Node < 18 提供 fetch polyfill
+if (!globalThis.fetch) {
+  const module = await import('node-fetch');
+  globalThis.fetch = module.default;
+}
 
 // 加载环境变量
 dotenv.config();
@@ -81,20 +86,30 @@ async function generateMCPDescription() {
   return description;
 }
 
-// 解析工具调用
+// 解析工具调用 - 支持多种格式
 function parseToolCalls(text) {
   const toolCalls = [];
-  const regex = /【工具调用】\s*(\{[\s\S]*?\})\s*【\/工具调用】/g;
-  let match;
   
-  while ((match = regex.exec(text)) !== null) {
-    try {
-      const toolCall = JSON.parse(match[1]);
-      toolCalls.push(toolCall);
-    } catch (e) {
-      console.error('Parse tool call error:', match[1]);
+  // 格式1: 【工具调用】...【/工具调用】
+  const regex1 = /【工具调用】\s*(\{[\s\S]*?\})\s*【\/工具调用】/g;
+  // 格式2: [TOOL_CALL]...[/TOOL_CALL]
+  const regex2 = /\[TOOL_CALL\]\s*(\{[\s\S]*?\})\s*\[\/TOOL_CALL\]/g;
+  // 格式3: ```json ... ``` 代码块
+  const regex3 = /```json\s*(\{[\s\S]*?"tool"[\s\S]*?\})\s*```/g;
+  
+  [regex1, regex2, regex3].forEach(regex => {
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      try {
+        const toolCall = JSON.parse(match[1]);
+        if (toolCall.tool && toolCall.parameters !== undefined) {
+          toolCalls.push(toolCall);
+        }
+      } catch (e) {
+        console.error('Parse tool call error:', match[1]);
+      }
     }
-  }
+  });
   
   return toolCalls;
 }

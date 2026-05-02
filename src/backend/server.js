@@ -1,9 +1,13 @@
 import express from 'express';
 import cors from 'cors';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+
+// 为 Node < 18 提供 fetch polyfill
+if (!globalThis.fetch) {
+  await import('node-fetch').then(module => {
+    globalThis.fetch = module.default;
+  });
+}
 
 // 加载环境变量
 dotenv.config();
@@ -12,7 +16,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3002; // 改为3002，避免与server-mcp.js冲突
 
 // SiliconFlow AI 配置
 const SILICONFLOW_API_URL = 'https://api.siliconflow.cn/v1/chat/completions';
