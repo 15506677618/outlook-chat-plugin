@@ -133,12 +133,16 @@ if (browser.messageDisplayAction && browser.messageDisplayAction.onClicked) {
 
       const conversation = await getEmailConversation(message.id);
       log('conversation loaded:', conversation);
-
+      
+      // 获取用户邮箱
+      const userEmail = await getUserEmail();
+      
       setTimeout(() => {
         log('sending message to chat window...');
-
+        
         browser.tabs.sendMessage(chatTabId, {
           type: 'emailContent',
+          userEmail: userEmail,
           subject: message.subject || '无主题',
           from: formatAuthor(message.author),
           date: formatDate(message.date),
@@ -148,7 +152,7 @@ if (browser.messageDisplayAction && browser.messageDisplayAction.onClicked) {
         }).catch(err => {
           error('sendMessage failed:', err);
         });
-
+        
       }, 1000);
 
     } catch (e) {
@@ -178,9 +182,13 @@ if (browser.messageDisplay && browser.messageDisplay.onMessageDisplayed) {
       if (!message) return;
 
       const conversation = await getEmailConversation(message.id);
-
+      
+      // 获取用户邮箱
+      const userEmail = await getUserEmail();
+      
       browser.tabs.sendMessage(chatTabId, {
         type: 'emailContent',
+        userEmail: userEmail,
         subject: message.subject || '无主题',
         from: formatAuthor(message.author),
         date: formatDate(message.date),
@@ -215,15 +223,18 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return;
         }
 
+      return getUserEmail().then(userEmail => {
         return getEmailConversation(msg.id).then(conversation => {
           sendResponse({
             type: 'emailContent',
+            userEmail: userEmail,
             subject: msg.subject,
             from: formatAuthor(msg.author),
             date: formatDate(msg.date),
             conversation
           });
         });
+      });
       })
       .catch(err => {
         error('getEmailContent error:', err);
@@ -260,6 +271,23 @@ async function getEmailConversation(messageId) {
     error('getEmailConversation failed:', e);
     return [];
   }
+}
+
+// ============================
+// 获取用户邮箱
+// ============================
+async function getUserEmail() {
+  try {
+    const identities = await browser.identities.list();
+    if (identities && identities.length > 0) {
+      // 返回第一个身份（主邮箱）
+      log('user email:', identities[0].email);
+      return identities[0].email;
+    }
+  } catch (e) {
+    error('get user email failed:', e);
+  }
+  return null;
 }
 
 // ============================

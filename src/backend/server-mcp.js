@@ -91,27 +91,106 @@ function parseToolCalls(text) {
   const toolCalls = [];
   
   // 格式1: 【工具调用】...【/工具调用】
-  const regex1 = /【工具调用】\s*(\{[\s\S]*?\})\s*【\/工具调用】/g;
-  // 格式2: [TOOL_CALL]...[/TOOL_CALL]
-  const regex2 = /\[TOOL_CALL\]\s*(\{[\s\S]*?\})\s*\[\/TOOL_CALL\]/g;
-  // 格式3: ```json ... ``` 代码块
-  const regex3 = /```json\s*(\{[\s\S]*?"tool"[\s\S]*?\})\s*```/g;
+  let startTag = '【工具调用】';
+  let endTag = '【/工具调用】';
+  let searchFrom = 0;
   
-  [regex1, regex2, regex3].forEach(regex => {
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      try {
-        const toolCall = JSON.parse(match[1]);
-        if (toolCall.tool && toolCall.parameters !== undefined) {
-          toolCalls.push(toolCall);
-        }
-      } catch (e) {
-        console.error('Parse tool call error:', match[1]);
+  while (searchFrom < text.length) {
+    const startIdx = text.indexOf(startTag, searchFrom);
+    if (startIdx === -1) break;
+    
+    const endIdx = text.indexOf(endTag, startIdx + startTag.length);
+    if (endIdx === -1) break;
+    
+    const jsonStr = text.substring(startIdx + startTag.length, endIdx).trim();
+    
+    try {
+      // 尝试提取完整的JSON对象（处理嵌套括号）
+      const toolCall = extractJSON(jsonStr);
+      if (toolCall && toolCall.tool && toolCall.parameters !== undefined) {
+        toolCalls.push(toolCall);
       }
+    } catch (e) {
+      console.error('Parse tool call error:', jsonStr.substring(0, 100));
     }
-  });
+    
+    searchFrom = endIdx + endTag.length;
+  }
+  
+  // 格式2: [TOOL_CALL]...[/TOOL_CALL]
+  searchFrom = 0;
+  startTag = '[TOOL_CALL]';
+  endTag = '[/TOOL_CALL]';
+  
+  while (searchFrom < text.length) {
+    const startIdx = text.indexOf(startTag, searchFrom);
+    if (startIdx === -1) break;
+    
+    const endIdx = text.indexOf(endTag, startIdx + startTag.length);
+    if (endIdx === -1) break;
+    
+    const jsonStr = text.substring(startIdx + startTag.length, endIdx).trim();
+    
+    try {
+      const toolCall = extractJSON(jsonStr);
+      if (toolCall && toolCall.tool && toolCall.parameters !== undefined) {
+        toolCalls.push(toolCall);
+      }
+    } catch (e) {
+      console.error('Parse tool call error:', jsonStr.substring(0, 100));
+    }
+    
+    searchFrom = endIdx + endTag.length;
+  }
   
   return toolCalls;
+}
+
+// 提取完整的JSON对象（处理嵌套的大括号）
+function extractJSON(str) {
+  str = str.trim();
+  if (!str.startsWith('{')) {
+    // 如果不是以{开头，尝试找到第一个{
+    const firstBrace = str.indexOf('{');
+    if (firstBrace === -1) throw new Error('No JSON object found');
+    str = str.substring(firstBrace);
+  }
+  
+  let braceCount = 0;
+  let inString = false;
+  let escapeNext = false;
+  
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+    
+    if (char === '\\' && inString) {
+      escapeNext = true;
+      continue;
+    }
+    
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    
+    if (!inString) {
+      if (char === '{') braceCount++;
+      if (char === '}') braceCount--;
+      
+      if (braceCount === 0) {
+        // 找到匹配的结束括号
+        const jsonStr = str.substring(0, i + 1);
+        return JSON.parse(jsonStr);
+      }
+    }
+  }
+  
+  throw new Error('Incomplete JSON object');
 }
 
 // 执行工具调用

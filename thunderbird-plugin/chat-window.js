@@ -22,6 +22,7 @@ const inquiryListContainer = document.getElementById('inquiry-list');
 // 状态
 let conversationHistory = [];
 let currentEmail = null;
+let userEmail = null; // 用户邮箱
 let abortController = null; // 用于取消请求
 
 // 监听来自 background.js 的邮件数据
@@ -30,6 +31,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   if (message.type === 'emailContent') {
     currentEmail = message;
+    userEmail = message.userEmail || null; // 保存用户邮箱
     displayEmail(currentEmail);
     
     // 构建欢迎消息
@@ -263,9 +265,8 @@ async function sendMessage() {
       body: JSON.stringify({
         messages: messagesToSend,
         userMessage: message,
-        stream: true
-      }),
-      signal: abortController.signal
+        userEmail: userEmail // 传递用户邮箱作为标识
+      })
     });
 
     console.log('API 响应状态:', response.status);
