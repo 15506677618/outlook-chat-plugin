@@ -309,15 +309,7 @@ function closeInquiryPanel() {
 }
 
 // MCP 服务地址（通过主服务代理）
-function getMCPApiUrl() {
-  // 生产环境使用相对路径
-  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-    return '/api';
-  }
-  // 开发环境
-  return 'http://localhost:3000/api';
-}
-const MCP_API_URL = getMCPApiUrl();
+const MCP_API_URL = 'https://koudai.xin/api/mcp';
 
 async function loadInquiryList(keyword = '') {
   try {
