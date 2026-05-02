@@ -18,6 +18,13 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3002; // 改为3002，避免与server-mcp.js冲突
 
+// 启用 CORS
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 // SiliconFlow AI 配置
 const SILICONFLOW_API_URL = 'https://api.siliconflow.cn/v1/chat/completions';
 const SILICONFLOW_API_KEY = process.env.SILICONFLOW_API_KEY || 'YOUR_API_KEY';
