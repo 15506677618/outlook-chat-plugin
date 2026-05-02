@@ -1,16 +1,7 @@
 // Chat window script
 
-// API URL 配置：优先使用环境变量，否则根据环境自动判断
-function getAPIUrl() {
-  // 生产环境
-  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-    return '/api/chat';
-  }
-  // 开发环境 - 默认本地后端
-  return 'http://localhost:3000/api/chat';
-}
-
-const API_URL = getAPIUrl();
+// API URL 配置
+const API_URL = 'https://koudai.xin/api/chat';
 const ACCESS_PASSWORD = 'koudai123'; // 访问密码 - 注意：客户端密码仅用于简单验证，生产环境应使用更安全的方式
 
 // DOM 元素
@@ -20,10 +11,18 @@ const emailBodyEl = document.getElementById('email-body');
 const messagesContainer = document.getElementById('messages');
 const userInput = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-btn');
+const cancelBtn = document.getElementById('cancel-btn');
+const quickButtons = document.querySelectorAll('.quick-btn');
+const inquiryListBtn = document.getElementById('inquiry-list-btn');
+const inquiryPanel = document.getElementById('inquiry-panel');
+const closeInquiryPanelBtn = document.getElementById('close-inquiry-panel');
+const inquirySearchInput = document.getElementById('inquiry-search');
+const inquiryListContainer = document.getElementById('inquiry-list');
 
 // 状态
 let conversationHistory = [];
 let currentEmail = null;
+let abortController = null; // 用于取消请求
 
 // 监听来自 background.js 的邮件数据
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -87,24 +86,29 @@ function displayEmail(email) {
 }
 
 function formatMessage(content) {
-  // 如果内容已经包含 HTML 标签，直接返回
+  // 如果内容已经包含 HTML 标签，清理多余的空白
   if (/<[a-z][\s\S]*>/i.test(content)) {
-    return content;
+    // 移除标签之间的多余换行和空格
+    return content
+      .replace(/>\s+</g, '><')  // 移除标签之间的空白
+      .replace(/\n\s*\n/g, '\n')  // 移除连续空行
+      .trim();
   }
   
   // 将 ### 标题 转换为 <h3>标题</h3>
-  let formatted = content.replace(/###\s+(.+?)(?=\n|$)/g, '<h3 style="margin: 12px 0 8px 0; color: #333; font-size: 15px;">$1</h3>');
+  let formatted = content.replace(/###\s+(.+?)(?=\n|$)/g, '<h3 style="margin: 8px 0 4px 0; color: #333; font-size: 15px;">$1</h3>');
   
   // 将 ## 标题 转换为 <h2>标题</h2>
-  formatted = formatted.replace(/##\s+(.+?)(?=\n|$)/g, '<h2 style="margin: 14px 0 10px 0; color: #333; font-size: 16px;">$1</h2>');
+  formatted = formatted.replace(/##\s+(.+?)(?=\n|$)/g, '<h2 style="margin: 10px 0 6px 0; color: #333; font-size: 16px;">$1</h2>');
   
   // 将 # 标题 转换为 <h1>标题</h1>
-  formatted = formatted.replace(/#\s+(.+?)(?=\n|$)/g, '<h1 style="margin: 16px 0 12px 0; color: #333; font-size: 18px;">$1</h1>');
+  formatted = formatted.replace(/#\s+(.+?)(?=\n|$)/g, '<h1 style="margin: 12px 0 8px 0; color: #333; font-size: 18px;">$1</h1>');
   
   // 将 **文本** 转换为 <strong>文本</strong>
   formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong style="color: #333;">$1</strong>');
   
-  // 将换行符转换为 <br>
+  // 将多个换行符转换为单个 <br>
+  formatted = formatted.replace(/\n\s*\n/g, '<br>');
   formatted = formatted.replace(/\n/g, '<br>');
   
   return formatted;
@@ -164,6 +168,26 @@ function removeTypingIndicator() {
   }
 }
 
+function showCancelButton() {
+  sendBtn.classList.add('hidden');
+  cancelBtn.classList.add('visible');
+}
+
+function hideCancelButton() {
+  sendBtn.classList.remove('hidden');
+  cancelBtn.classList.remove('visible');
+}
+
+function cancelRequest() {
+  if (abortController) {
+    abortController.abort();
+    abortController = null;
+  }
+  removeTypingIndicator();
+  hideCancelButton();
+  addMessage('❌ 已取消请求');
+}
+
 async function sendMessage() {
   const message = userInput.value.trim();
   
@@ -218,6 +242,10 @@ async function sendMessage() {
   userInput.style.height = 'auto';
   
   addTypingIndicator();
+  showCancelButton();
+  
+  // 创建 AbortController 用于取消请求
+  abortController = new AbortController();
   
   try {
     console.log('发送 API 请求到:', API_URL);
@@ -232,11 +260,13 @@ async function sendMessage() {
       body: JSON.stringify({
         messages: messagesToSend,
         userMessage: message
-      })
+      }),
+      signal: abortController.signal
     });
     
     console.log('API 响应状态:', response.status);
     removeTypingIndicator();
+    hideCancelButton();
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -252,17 +282,120 @@ async function sendMessage() {
     
   } catch (error) {
     removeTypingIndicator();
+    hideCancelButton();
+    
+    if (error.name === 'AbortError') {
+      console.log('请求被取消');
+      return;
+    }
     
     const errorMessage = `❌ 发送失败：${error.message}。请检查网络连接。`;
     addMessage(errorMessage);
     
     console.error('聊天错误:', error);
+  } finally {
+    abortController = null;
+  }
+}
+
+// 询价列表相关函数
+function openInquiryPanel() {
+  inquiryPanel.classList.add('open');
+  loadInquiryList();
+}
+
+function closeInquiryPanel() {
+  inquiryPanel.classList.remove('open');
+}
+
+// MCP 服务地址（通过主服务代理）
+function getMCPApiUrl() {
+  // 生产环境使用相对路径
+  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    return '/api';
+  }
+  // 开发环境
+  return 'http://localhost:3000/api';
+}
+const MCP_API_URL = getMCPApiUrl();
+
+async function loadInquiryList(keyword = '') {
+  try {
+    const response = await fetch(`${MCP_API_URL}/mcp/resources/inquiries`);
+    if (!response.ok) throw new Error('加载失败');
+    
+    const inquiries = await response.json();
+    
+    // 过滤
+    let filtered = inquiries;
+    if (keyword) {
+      const lowerKeyword = keyword.toLowerCase();
+      filtered = inquiries.filter(i => 
+        i.id.toLowerCase().includes(lowerKeyword) ||
+        i.emailSubject?.toLowerCase().includes(lowerKeyword) ||
+        i.pol?.toLowerCase().includes(lowerKeyword) ||
+        i.pod?.toLowerCase().includes(lowerKeyword) ||
+        i.cargoName?.toLowerCase().includes(lowerKeyword)
+      );
+    }
+    
+    // 渲染列表
+    inquiryListContainer.innerHTML = filtered.length === 0 
+      ? '<div style="text-align: center; padding: 20px; color: #999;">暂无询价记录</div>'
+      : filtered.map(i => `
+        <div class="inquiry-item" data-id="${i.id}">
+          <div class="inquiry-id">${i.id}</div>
+          <div class="inquiry-route">${i.pol || '-'} → ${i.pod || '-'}</div>
+          <div class="inquiry-cargo">${i.cargoName || '-'} ${i.containerType || ''}</div>
+          <div class="inquiry-date">${i.inquiryDate || '-'}</div>
+        </div>
+      `).join('');
+    
+    // 绑定点击事件
+    document.querySelectorAll('.inquiry-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const id = item.getAttribute('data-id');
+        userInput.value = `查看询价 ${id} 的详情`;
+        closeInquiryPanel();
+        userInput.focus();
+      });
+    });
+    
+  } catch (error) {
+    console.error('加载询价列表失败:', error);
+    inquiryListContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #ff6b6b;">加载失败</div>';
   }
 }
 
 function setupEventListeners() {
   sendBtn.addEventListener('click', sendMessage);
   console.log('发送按钮事件已设置');
+  
+  // 取消按钮事件
+  cancelBtn.addEventListener('click', cancelRequest);
+  console.log('取消按钮事件已设置');
+  
+  // 快捷键按钮事件
+  quickButtons.forEach(btn => {
+    if (btn.id === 'inquiry-list-btn') return; // 跳过询价列表按钮
+    btn.addEventListener('click', () => {
+      const text = btn.getAttribute('data-text');
+      userInput.value = text;
+      userInput.focus();
+      userInput.style.height = 'auto';
+      userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
+    });
+  });
+  console.log('快捷键按钮事件已设置');
+  
+  // 询价列表按钮事件
+  inquiryListBtn.addEventListener('click', openInquiryPanel);
+  closeInquiryPanelBtn.addEventListener('click', closeInquiryPanel);
+  
+  // 搜索框事件
+  inquirySearchInput.addEventListener('input', (e) => {
+    loadInquiryList(e.target.value);
+  });
   
   userInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {

@@ -243,6 +243,19 @@ app.post('/api/mcp/call', async (req, res) => {
   res.json({ result });
 });
 
+app.get('/api/mcp/resources/:type', async (req, res) => {
+  const { type } = req.params;
+  try {
+    const response = await fetch(`${MCP_SERVER_URL}/mcp/resources/${type}`);
+    if (!response.ok) throw new Error(`Failed to fetch ${type}`);
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('MCP Resource Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/', (req, res) => {
   res.sendFile(join(__dirname, '..', '..', 'dist', 'chat.html'));
 });

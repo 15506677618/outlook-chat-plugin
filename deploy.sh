@@ -47,7 +47,7 @@ cd ..
 
 # 6. 保存 PM2 配置
 pm2 save
-pm2 startup | tail -1 | bash
+pm2 startup systemd -u root --hp /root
 
 # 7. 验证部署
 echo "✅ 验证部署..."
