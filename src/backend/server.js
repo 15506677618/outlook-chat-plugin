@@ -111,6 +111,47 @@ app.post('/api/chat', requirePassword, async (req, res) => {
   }
 });
 
+// MCP 代理路由
+const MCP_SERVER_URL = process.env.MCP_SERVER_URL || 'http://localhost:3001';
+
+// MCP 工具列表
+app.get('/api/mcp/tools', async (req, res) => {
+  try {
+    const response = await fetch(`${MCP_SERVER_URL}/mcp/tools`);
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: 'MCP 服务不可用' });
+  }
+});
+
+// MCP 工具调用
+app.post('/api/mcp/call', async (req, res) => {
+  try {
+    const response = await fetch(`${MCP_SERVER_URL}/mcp/call`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: 'MCP 服务不可用' });
+  }
+});
+
+// MCP 资源获取
+app.get('/api/mcp/resources/:type', async (req, res) => {
+  try {
+    const { type } = req.params;
+    const response = await fetch(`${MCP_SERVER_URL}/mcp/resources/${type}`);
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: 'MCP 服务不可用' });
+  }
+});
+
 app.get('/', (req, res) => {
   res.sendFile(join(__dirname, '..', '..', 'dist', 'chat.html'));
 });
@@ -119,5 +160,6 @@ app.listen(PORT, () => {
   console.log(`🚀 服务器运行在 http://localhost:${PORT}`);
   console.log(`📱 聊天页面：http://localhost:${PORT}/chat.html`);
   console.log(`🤖 AI 服务：${SILICONFLOW_API_URL}`);
+  console.log(`🔧 MCP 服务：${MCP_SERVER_URL}`);
   console.log(`📝 使用模型：${SILICONFLOW_MODEL}`);
 });
