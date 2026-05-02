@@ -243,14 +243,17 @@ async function sendMessage() {
   
   addTypingIndicator();
   showCancelButton();
-  
+
   // 创建 AbortController 用于取消请求
   abortController = new AbortController();
-  
+
+  let fullMessage = '';
+  let messageDiv = null;
+
   try {
     console.log('发送 API 请求到:', API_URL);
     console.log('请求数据:', JSON.stringify({ messages: messagesToSend }, null, 2));
-    
+
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -259,43 +262,123 @@ async function sendMessage() {
       },
       body: JSON.stringify({
         messages: messagesToSend,
-        userMessage: message
+        userMessage: message,
+        stream: true
       }),
       signal: abortController.signal
     });
-    
+
     console.log('API 响应状态:', response.status);
     removeTypingIndicator();
-    hideCancelButton();
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
-    const data = await response.json();
-    const botMessage = data.response || data.message || '抱歉，我没有收到回复。';
-    
-    console.log('收到回复:', botMessage.substring(0, 50));
-    
-    conversationHistory.push({ role: 'assistant', content: botMessage });
-    addMessage(botMessage);
-    
+
+    // 检查是否是流式响应
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('text/event-stream')) {
+      // 流式响应处理
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      // 创建消息元素用于流式显示
+      messageDiv = addStreamingMessage();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.content || '';
+              if (content) {
+                fullMessage += content;
+                updateStreamingMessage(messageDiv, fullMessage);
+              }
+            } catch (e) {
+              // 忽略解析错误
+            }
+          }
+        }
+      }
+
+      // 流式输出完成
+      hideCancelButton();
+      conversationHistory.push({ role: 'assistant', content: fullMessage });
+    } else {
+      // 非流式响应（兼容旧版本）
+      hideCancelButton();
+      const data = await response.json();
+      const botMessage = data.response || data.message || '抱歉，我没有收到回复。';
+
+      console.log('收到回复:', botMessage.substring(0, 50));
+
+      conversationHistory.push({ role: 'assistant', content: botMessage });
+      addMessage(botMessage);
+    }
+
   } catch (error) {
     removeTypingIndicator();
     hideCancelButton();
-    
+
     if (error.name === 'AbortError') {
       console.log('请求被取消');
+      if (messageDiv && fullMessage) {
+        // 保留已接收的内容
+        conversationHistory.push({ role: 'assistant', content: fullMessage + '\n\n[已取消]' });
+      }
       return;
     }
-    
+
     const errorMessage = `❌ 发送失败：${error.message}。请检查网络连接。`;
     addMessage(errorMessage);
-    
+
     console.error('聊天错误:', error);
   } finally {
     abortController = null;
   }
+}
+
+// 添加流式消息元素
+function addStreamingMessage() {
+  const messageDiv = document.createElement('div');
+  messageDiv.className = 'message bot';
+
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = '🤖';
+
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'content';
+
+  const paragraph = document.createElement('p');
+  paragraph.id = 'streaming-content';
+  paragraph.style.whiteSpace = 'pre-wrap';
+  paragraph.style.wordWrap = 'break-word';
+
+  contentDiv.appendChild(paragraph);
+  messageDiv.appendChild(avatar);
+  messageDiv.appendChild(contentDiv);
+
+  messagesContainer.appendChild(messageDiv);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+  return paragraph;
+}
+
+// 更新流式消息内容
+function updateStreamingMessage(paragraph, content) {
+  paragraph.innerHTML = formatMessage(content);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
 // 询价列表相关函数

@@ -59,9 +59,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.static(join(__dirname, '..', '..', 'dist')));
 
-// 受保护的 API 接口
+// 受保护的 API 接口 - 流式输出
 app.post('/api/chat', requirePassword, async (req, res) => {
-  const { messages, userMessage } = req.body;
+  const { messages, userMessage, stream = true } = req.body;
 
   try {
     // 调用 SiliconFlow AI 接口
@@ -76,7 +76,8 @@ app.post('/api/chat', requirePassword, async (req, res) => {
         messages: [
           { role: 'system', content: '你是一个专业的邮件分析助手。\n\n【重要规则】\n1. 分析邮件时，只提取邮件中**明确提到**的信息，不要猜测或编造\n2. 如果某个字段在邮件中没有提到，标注为"未提供"或留空\n3. 添加询价/报价记录时，必须严格按照邮件内容执行，不能产生幻觉\n4. 不确定的信息要告知用户，不要擅自填充\n\n你可以使用 HTML 标签美化回复：<b>/<strong> 加粗、<br> 换行、<p> 段落、<ul>/<li> 列表、<h3> 标题等。' },
           ...messages
-        ]
+        ],
+        stream: stream !== false
       })
     });
 
@@ -86,22 +87,62 @@ app.post('/api/chat', requirePassword, async (req, res) => {
       throw new Error(`AI API 错误：${response.status}`);
     }
 
-    const data = await response.json();
-    const botReply = data.choices?.[0]?.message?.content || '抱歉，我没有理解。';
+    // 如果是流式响应
+    if (stream !== false && response.headers.get('content-type')?.includes('text/event-stream')) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
 
-    res.json({
-      response: botReply,
-      message: botReply,
-      timestamp: new Date().toISOString(),
-      model: SILICONFLOW_MODEL
-    });
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              res.write('data: [DONE]\n\n');
+              continue;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content || '';
+              if (content) {
+                res.write(`data: ${JSON.stringify({ content })}\n\n`);
+              }
+            } catch (e) {
+              // 忽略解析错误
+            }
+          }
+        }
+      }
+
+      res.end();
+    } else {
+      // 非流式响应（兼容旧版本）
+      const data = await response.json();
+      const botReply = data.choices?.[0]?.message?.content || '抱歉，我没有理解。';
+
+      res.json({
+        response: botReply,
+        message: botReply,
+        timestamp: new Date().toISOString(),
+        model: SILICONFLOW_MODEL
+      });
+    }
 
   } catch (error) {
     console.error('Chat 错误:', error);
-    
+
     // 如果 AI 服务不可用，返回演示模式回复
     const botReply = `这是演示模式下的回复。您发送的消息是: "${userMessage}"。\n\nAI 服务暂时不可用：${error.message}`;
-    
+
     res.json({
       response: botReply,
       message: botReply,
