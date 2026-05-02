@@ -471,6 +471,148 @@
     #messages::-webkit-scrollbar-thumb:hover {
       background: #a8a8a8;
     }
+
+    /* 报价面板样式 */
+    #quotation-panel {
+      position: fixed;
+      top: 0;
+      right: -350px;
+      width: 350px;
+      height: 100%;
+      background: white;
+      box-shadow: -2px 0 8px rgba(0,0,0,0.1);
+      transition: right 0.3s ease;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #quotation-panel.open {
+      right: 0;
+    }
+
+    #quotation-panel .panel-header {
+      padding: 15px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #quotation-panel .panel-header h3 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    #quotation-panel .close-btn {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #quotation-panel .panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+    }
+
+    #quotation-panel select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    #quotation-panel select:focus {
+      border-color: #667eea;
+    }
+
+    #quotation-panel input[type="text"] {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+      box-sizing: border-box;
+      margin-bottom: 10px;
+    }
+
+    #quotation-panel input[type="text"]:focus {
+      border-color: #667eea;
+    }
+
+    #quotation-supplier-list {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #f0f0f0;
+      border-radius: 6px;
+      padding: 8px;
+    }
+
+    .supplier-item {
+      padding: 10px;
+      border: 1px solid #f0f0f0;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .supplier-item:hover {
+      background: #f8f9fa;
+      border-color: #667eea;
+    }
+
+    .supplier-item.selected {
+      background: #e7f0ff;
+      border-color: #667eea;
+    }
+
+    .supplier-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 4px;
+    }
+
+    .supplier-info {
+      font-size: 11px;
+      color: #666;
+    }
+
+    #quotation-confirm-btn {
+      width: 100%;
+      padding: 10px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    #quotation-confirm-btn:hover {
+      opacity: 0.9;
+    }
+
+    #quotation-confirm-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -512,6 +654,44 @@
       </div>
       <div class="panel-content" id="inquiry-list">
         <!-- 询价列表项将在这里动态生成 -->
+      </div>
+    </div>
+
+    <!-- 添加报价面板 -->
+    <div id="quotation-panel" class="side-panel">
+      <div class="panel-header">
+        <h3>💰 添加报价</h3>
+        <button id="close-quotation-panel" class="close-btn">✕</button>
+      </div>
+      <div class="panel-content" style="padding: 15px;">
+        <!-- 询价单选择 -->
+        <div style="margin-bottom: 15px;">
+          <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">选择询价单</label>
+          <select id="quotation-inquiry-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+            <option value="">请选择询价单...</option>
+          </select>
+        </div>
+
+        <!-- 供应商选择 -->
+        <div style="margin-bottom: 15px;">
+          <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">选择供应商</label>
+          <select id="quotation-supplier-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
+            <option value="">请选择供应商...</option>
+          </select>
+        </div>
+
+        <!-- 搜索框 -->
+        <div style="margin-bottom: 15px;">
+          <input type="text" id="quotation-search" placeholder="搜索供应商..." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; box-sizing: border-box;">
+        </div>
+
+        <!-- 供应商列表 -->
+        <div id="quotation-supplier-list" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px;">
+          <!-- 供应商列表项将在这里动态生成 -->
+        </div>
+
+        <!-- 确认按钮 -->
+        <button id="quotation-confirm-btn" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">确认添加</button>
       </div>
     </div>
     

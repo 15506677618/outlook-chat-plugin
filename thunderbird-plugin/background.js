@@ -4,6 +4,17 @@
 let chatTabId = null;
 const DEBUG = true;
 
+// API 配置 - 根据环境设置
+// 开发环境：http://localhost:3000
+// 生产环境：https://koudai.xin
+const API_BASE_URL = 'https://koudai.xin';  // 生产环境域名
+
+// 发送配置给聊天窗口（使用非流式接口）
+const configMessage = {
+  type: 'config',
+  apiUrl: API_BASE_URL + '/api/chat'  // 非流式接口
+};
+
 function log(...args) {
   if (DEBUG) {
     console.log('[AI-EMAIL-DEBUG]', ...args);
@@ -140,6 +151,17 @@ if (browser.messageDisplayAction && browser.messageDisplayAction.onClicked) {
       setTimeout(() => {
         log('sending message to chat window...');
         
+        // 先发送配置
+        browser.tabs.sendMessage(chatTabId, {
+          type: 'config',
+          apiUrl: API_BASE_URL + '/api/chat/stream'
+        }).then(() => {
+          log('config sent successfully');
+        }).catch(err => {
+          error('send config failed:', err);
+        });
+        
+        // 再发送邮件内容
         browser.tabs.sendMessage(chatTabId, {
           type: 'emailContent',
           userEmail: userEmail,

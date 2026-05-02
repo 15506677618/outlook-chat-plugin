@@ -1,13 +1,42 @@
 // Chat window script
 
-// API URL 配置 - 使用流式接口
-function getAPIUrl() {
-  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-    return '/api/chat/stream'; // 生产环境使用相对路径
+// API URL 配置 - 使用非流式接口（之前能工作的版本）
+// Thunderbird 扩展中，需要从 background.js 获取后端地址
+let API_URL = 'https://koudai.xin/api/chat'; // 默认生产环境，使用非流式接口
+
+// 监听来自 background.js 的配置信息
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'config') {
+    if (message.apiUrl) {
+      API_URL = message.apiUrl;
+      console.log('API URL 已更新:', API_URL);
+    }
   }
-  return 'http://localhost:3000/api/chat/stream'; // 开发环境
-}
-const API_URL = getAPIUrl();
+  
+  if (message.type === 'emailContent') {
+    currentEmail = message;
+    userEmail = message.userEmail || null;
+    displayEmail(currentEmail);
+    
+    // 构建欢迎消息
+    let welcomeMsg = `📧 **已加载邮件**
+\n\n**主题：** ${currentEmail.subject}
+\n**发件人：** ${currentEmail.from}
+\n**日期：** ${currentEmail.date}`;
+    
+    if (currentEmail.conversation && currentEmail.conversation.length > 1) {
+      welcomeMsg += `\n\n📨 **此邮件会话共 ${currentEmail.conversation.length} 封邮件**`;
+    }
+    
+    welcomeMsg += `\n\n您可以询问我关于这封邮件的任何问题！`;
+    
+    addMessage(welcomeMsg, false);
+    
+    sendResponse({success: true});
+  }
+  
+  return true;
+});
 const ACCESS_PASSWORD = 'koudai123'; // 访问密码 - 注意：客户端密码仅用于简单验证，生产环境应使用更安全的方式
 
 // DOM 元素
@@ -25,11 +54,22 @@ const closeInquiryPanelBtn = document.getElementById('close-inquiry-panel');
 const inquirySearchInput = document.getElementById('inquiry-search');
 const inquiryListContainer = document.getElementById('inquiry-list');
 
+// 报价面板相关
+const quotationPanel = document.getElementById('quotation-panel');
+const closeQuotationPanelBtn = document.getElementById('close-quotation-panel');
+const quotationInquirySelect = document.getElementById('quotation-inquiry-select');
+const quotationSupplierSelect = document.getElementById('quotation-supplier-select');
+const quotationSearchInput = document.getElementById('quotation-search');
+const quotationSupplierList = document.getElementById('quotation-supplier-list');
+const quotationConfirmBtn = document.getElementById('quotation-confirm-btn');
+
 // 状态
 let conversationHistory = [];
 let currentEmail = null;
 let userEmail = null; // 用户邮箱
 let abortController = null; // 用于取消请求
+let selectedInquiryId = null; // 选中的询价单ID
+let selectedSupplierId = null; // 选中的供应商ID
 
 // 监听来自 background.js 的邮件数据
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -398,6 +438,137 @@ function closeInquiryPanel() {
   inquiryPanel.classList.remove('open');
 }
 
+// 报价面板相关函数
+async function openQuotationPanel() {
+  quotationPanel.classList.add('open');
+  selectedInquiryId = null;
+  selectedSupplierId = null;
+  quotationConfirmBtn.disabled = true;
+  
+  // 加载询价单
+  await loadInquirysForQuotation();
+  
+  // 加载供应商
+  await loadSuppliers();
+}
+
+function closeQuotationPanel() {
+  quotationPanel.classList.remove('open');
+}
+
+async function loadInquirysForQuotation() {
+  try {
+    const response = await fetch(`${MCP_API_URL}/mcp/resources/inquiries`);
+    if (!response.ok) throw new Error('加载失败');
+    
+    const inquiries = await response.json();
+    
+    // 清空并重新填充下拉框
+    quotationInquirySelect.innerHTML = '<option value="">请选择询价单...</option>';
+    
+    inquiries.forEach(inq => {
+      const option = document.createElement('option');
+      option.value = inq.id;
+      option.textContent = `${inq.id} - ${inq.pol || '-'} → ${inq.pod || '-'} (${inq.cargoName || '未指定'})`;
+      quotationInquirySelect.appendChild(option);
+    });
+    
+    // 绑定选择事件
+    quotationInquirySelect.onchange = () => {
+      selectedInquiryId = quotationInquirySelect.value || null;
+      updateQuotationConfirmButton();
+    };
+    
+  } catch (error) {
+    console.error('加载询价单失败:', error);
+    quotationInquirySelect.innerHTML = '<option value="">加载失败</option>';
+  }
+}
+
+async function loadSuppliers(keyword = '') {
+  try {
+    let url = `${MCP_API_URL}/mcp/resources/suppliers`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('加载失败');
+    
+    let suppliers = await response.json();
+    
+    // 过滤
+    if (keyword) {
+      const lowerKeyword = keyword.toLowerCase();
+      suppliers = suppliers.filter(s => 
+        s.id.toLowerCase().includes(lowerKeyword) ||
+        s.name.toLowerCase().includes(lowerKeyword) ||
+        s.contact?.toLowerCase().includes(lowerKeyword)
+      );
+    }
+    
+    // 渲染供应商列表
+    quotationSupplierList.innerHTML = suppliers.length === 0 
+      ? '<div style="text-align: center; padding: 20px; color: #999;">暂无供应商</div>'
+      : suppliers.map(s => `
+        <div class="supplier-item" data-id="${s.id}">
+          <div class="supplier-name">${s.id} - ${s.name}</div>
+          <div class="supplier-info">${s.contact} | ${s.phone}</div>
+        </div>
+      `).join('');
+    
+    // 绑定点击事件
+    document.querySelectorAll('.supplier-item').forEach(item => {
+      item.addEventListener('click', () => {
+        // 移除其他选中状态
+        document.querySelectorAll('.supplier-item').forEach(i => i.classList.remove('selected'));
+        // 选中当前
+        item.classList.add('selected');
+        selectedSupplierId = item.getAttribute('data-id');
+        updateQuotationConfirmButton();
+      });
+    });
+    
+  } catch (error) {
+    console.error('加载供应商失败:', error);
+    quotationSupplierList.innerHTML = '<div style="text-align: center; padding: 20px; color: #ff6b6b;">加载失败</div>';
+  }
+}
+
+function updateQuotationConfirmButton() {
+  quotationConfirmBtn.disabled = !(selectedInquiryId && selectedSupplierId);
+}
+
+function setupQuotationPanelEvents() {
+  // 关闭按钮
+  closeQuotationPanelBtn.addEventListener('click', closeQuotationPanel);
+  
+  // 搜索框
+  quotationSearchInput.addEventListener('input', (e) => {
+    loadSuppliers(e.target.value);
+  });
+    
+  // 确认按钮
+  quotationConfirmBtn.addEventListener('click', () => {
+    if (!selectedInquiryId || !selectedSupplierId) return;
+    
+    // 构造消息
+    const supplier = Array.from(quotationSupplierList.querySelectorAll('.supplier-item.selected'))
+      .map(el => {
+        const id = el.getAttribute('data-id');
+        const name = el.querySelector('.supplier-name').textContent;
+        return { id, name };
+      })[0];
+    
+    const message = `添加报价信息，询价单：${selectedInquiryId}，供应商：${supplier?.id || selectedSupplierId}，请帮我从邮件中提取报价信息并添加，需要绑定询价单和供应商`;
+    
+    userInput.value = message;
+    closeQuotationPanel();
+    userInput.focus();
+    userInput.style.height = 'auto';
+    userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
+  });
+}
+
+// 初始化报价面板事件
+setupQuotationPanelEvents();
+
 // MCP 服务地址（通过主服务代理）
 const MCP_API_URL = 'https://koudai.xin/api';
 
@@ -464,23 +635,15 @@ function setupEventListeners() {
     btn.addEventListener('click', () => {
       const text = btn.getAttribute('data-text');
       
-      // 特殊处理：添加报价信息按钮需要绑定供应商
+      // 特殊处理：添加报价信息按钮需要打开报价面板
       if (text === '添加报价信息') {
-        // 让用户输入供应商信息（可以是ID或名称）
-        const supplierInfo = prompt('请输入供应商ID或名称（留空则稍后指定）：');
-        let finalText = text;
-        if (supplierInfo && supplierInfo.trim()) {
-          finalText += `，供应商：${supplierInfo.trim()}`;
-        }
-        finalText += '，请帮我从邮件中提取报价信息并添加，需要绑定供应商';
-        userInput.value = finalText;
+        openQuotationPanel();
       } else {
         userInput.value = text;
+        userInput.focus();
+        userInput.style.height = 'auto';
+        userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
       }
-      
-      userInput.focus();
-      userInput.style.height = 'auto';
-      userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
     });
   });
   console.log('快捷键按钮事件已设置');
