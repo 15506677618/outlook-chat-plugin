@@ -9,10 +9,10 @@ const DEBUG = true;
 // 生产环境：https://koudai.xin
 const API_BASE_URL = 'https://koudai.xin';  // 生产环境域名
 
-// 发送配置给聊天窗口（使用非流式接口）
+// 发送配置给聊天窗口（使用非流式接口，避免 CORS 问题）
 const configMessage = {
   type: 'config',
-  apiUrl: API_BASE_URL + '/api/chat'  // 非流式接口
+  apiUrl: API_BASE_URL + '/api/chat'  // 非流式，之前能工作的版本
 };
 
 function log(...args) {
@@ -151,10 +151,10 @@ if (browser.messageDisplayAction && browser.messageDisplayAction.onClicked) {
       setTimeout(() => {
         log('sending message to chat window...');
         
-        // 先发送配置
+        // 先发送配置（非流式接口）
         browser.tabs.sendMessage(chatTabId, {
           type: 'config',
-          apiUrl: API_BASE_URL + '/api/chat/stream'
+          apiUrl: API_BASE_URL + '/api/chat'  // 非流式，解决 CORS 问题
         }).then(() => {
           log('config sent successfully');
         }).catch(err => {

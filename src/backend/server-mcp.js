@@ -19,6 +19,35 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// CORS 配置 - 允许 Thunderbird 扩展访问
+const corsOptions = {
+  origin: (origin, callback) => {
+    // 允许无 origin（同源请求）或任何源（Thunderbird 扩展使用 moz-extension://）
+    if (!origin || origin.startsWith('moz-extension://') || origin.includes('koudai.xin')) {
+      callback(null, true);
+    } else {
+      callback(null, true); // 暂时允许所有源，生产环境可收紧
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
+app.use(cors(corsOptions));
+
+// 额外手动设置 CORS 头（双重保障）
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
+
 // SiliconFlow AI 配置
 const SILICONFLOW_API_URL = 'https://api.siliconflow.cn/v1/chat/completions';
 const SILICONFLOW_API_KEY = process.env.SILICONFLOW_API_KEY || 'YOUR_API_KEY';

@@ -1,7 +1,7 @@
 // Chat window script
 
-// API URL 配置
-const API_URL = 'https://koudai.xin/api/chat';
+// API URL 配置 - 非流式接口（避免 CORS 和流式问题）
+const API_URL = 'https://koudai.xin/api/chat';  // 非流式，与之前能工作的版本一致
 const ACCESS_PASSWORD = 'koudai123'; // 访问密码 - 注意：客户端密码仅用于简单验证，生产环境应使用更安全的方式
 
 // DOM 元素
@@ -260,11 +260,10 @@ async function sendMessage() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${ACCESS_PASSWORD}`
       },
-      body: JSON.stringify({
-        messages: messagesToSend,
-        userMessage: message,
-        stream: true
-      }),
+        body: JSON.stringify({
+          messages: messagesToSend,
+          userMessage: message
+        }),
       signal: abortController.signal
     });
 
