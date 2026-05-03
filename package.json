@@ -19,6 +19,7 @@
     "pngjs": "^7.0.0"
   },
   "devDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.60.2",
     "vite": "^5.0.0"
   }
 }

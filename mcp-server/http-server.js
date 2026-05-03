@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -7,11 +8,16 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+dotenv.config({ path: join(__dirname, '..', 'local.env') });
+
 const app = express();
 
 // 配置 CORS，允许所有来源
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? ['https://koudai.xin', 'https://www.koudai.xin'] 
+  : '*';
 app.use(cors({
-  origin: '*',
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
@@ -51,8 +57,12 @@ const defaultData = {
     { id: 'S004', name: '青岛海丰物流', contact: '赵经理', phone: '13600136004', email: 'zhao@haifeng-logistics.com', address: '青岛市黄岛区', products: ['海运', '拼箱', '报关'], rating: 4.6 },
     { id: 'S005', name: '厦门联合航运', contact: '陈主管', phone: '13500135005', email: 'chen@unishipping.com', address: '厦门市湖里区', products: ['海运', '空运', '货运代理'], rating: 4.7 },
   ],
-  inquiries: [],
-  quotations: []
+  inquiries: [
+    { id: 'INQ-2024-001', messageId: 'msg-001', userId: 'demo_user', customerName: 'ABC Trading', emailId: 'email-001', emailSubject: '询价：上海到洛杉矶电子产品', inquiryDate: '2024-05-10', pol: 'Shanghai', pod: 'Los Angeles', cargoName: 'Electronics', containerType: '1x40HQ', volume: 60, weight: 18000, etd: '2024-06-01', specialRequirements: '需要温控', completeness: 100, status: 'inquiry', createdBy: 'demo_user', createdAt: '2024-05-10T10:00:00Z' },
+  ],
+  quotations: [
+    { id: 'QUO-2024-001', messageId: 'msg-002', userId: 'demo_user', inquiryId: 'INQ-2024-001', supplierId: 'S001', supplierName: '上海远洋物流', emailId: 'email-003', quoteDate: '2024-05-11', pol: 'Shanghai', pod: 'Los Angeles', ofRate: 3200, localCharges: 450, otherCharges: 0, totalCost: 3650, containerType: '1x40HQ', validDate: '2024-06-30', transitTime: '14 days', vesselName: 'MSC Leo', remarks: '价格最优', createdBy: 'demo_user', createdAt: '2024-05-11T10:00:00Z' },
+  ]
 };
 
 // 加载数据
@@ -73,7 +83,7 @@ function saveData(data) {
   try {
     writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
   } catch (error) {
-    console.error('保存数据失败:', error);
+    console.warn('保存数据失败 (非致命):', error.message);
   }
 }
 
@@ -172,12 +182,15 @@ const tools = [
   },
   {
     name: 'add_inquiry_record',
-    description: '添加询价记录',
+    description: '添加询价记录（自动计算完整度）',
     parameters: {
+      userId: { type: 'string', description: '当前用户ID' },
+      messageId: { type: 'string', description: '邮件唯一标识（用于重复检查）' },
       emailId: { type: 'string', description: '邮件ID' },
       emailSubject: { type: 'string', description: '邮件主题' },
       emailContent: { type: 'string', description: '邮件原文内容' },
       inquiryDate: { type: 'string', description: '询价日期' },
+      customerName: { type: 'string', description: '客户名称' },
       pol: { type: 'string', description: '起运港' },
       pod: { type: 'string', description: '目的港' },
       cargoName: { type: 'string', description: '货物品名' },
@@ -189,10 +202,31 @@ const tools = [
     },
     handler: (params) => {
       const year = new Date().getFullYear();
+      const userId = params.userId || process.env.DEFAULT_USER_ID || 'anonymous';
+      
+      const requiredFields = ['pol', 'pod', 'customerName', 'containerType'];
+      const optionalFields = ['cargoName', 'volume', 'weight', 'etd', 'specialRequirements'];
+      
+      let filledCount = 0;
+      requiredFields.forEach(f => { if (params[f]) filledCount += 2; });
+      optionalFields.forEach(f => { if (params[f]) filledCount += 1; });
+      const completeness = Math.round((filledCount / (requiredFields.length * 2 + optionalFields.length)) * 100);
+      
+      let status;
+      if (completeness >= 100) status = 'inquiry';
+      else if (completeness >= 60) status = 'pending';
+      else status = 'draft';
+      
       const id = `INQ-${year}-${String(mockData.inquiries.length + 1).padStart(3, '0')}`;
       const newInquiry = { 
         id, 
+        messageId: params.messageId,
+        userId,
         ...params,
+        userId,
+        completeness,
+        status,
+        createdBy: userId,
         createdAt: new Date().toISOString()
       };
       mockData.inquiries.push(newInquiry);
@@ -200,6 +234,8 @@ const tools = [
       return { 
         success: true, 
         inquiryId: id, 
+        completeness,
+        status,
         message: `询价记录已添加: ${id}`,
         inquiry: newInquiry
       };
@@ -207,8 +243,10 @@ const tools = [
   },
   {
     name: 'add_quotation_record',
-    description: '添加报价记录',
+    description: '添加报价记录（自动计算总费用）',
     parameters: {
+      userId: { type: 'string', description: '当前用户ID' },
+      messageId: { type: 'string', description: '邮件唯一标识' },
       inquiryId: { type: 'string', description: '关联询价单号（必须）' },
       supplierId: { type: 'string', description: '供应商ID' },
       supplierName: { type: 'string', description: '供应商名称' },
@@ -219,6 +257,7 @@ const tools = [
       pod: { type: 'string', description: '目的港' },
       ofRate: { type: 'number', description: '海运费' },
       localCharges: { type: 'number', description: '本地费' },
+      otherCharges: { type: 'number', description: '其他费用' },
       containerType: { type: 'string', description: '箱型' },
       validDate: { type: 'string', description: '有效期' },
       transitTime: { type: 'string', description: '运输时间' },
@@ -231,11 +270,24 @@ const tools = [
         return { error: `未找到询价单: ${params.inquiryId}` };
       }
       
+      const userId = params.userId || process.env.DEFAULT_USER_ID || 'anonymous';
+      const ofRate = params.ofRate || 0;
+      const localCharges = params.localCharges || 0;
+      const otherCharges = params.otherCharges || 0;
+      const totalCost = ofRate + localCharges + otherCharges;
+      
       const year = new Date().getFullYear();
       const id = `QUO-${year}-${String(mockData.quotations.length + 1).padStart(3, '0')}`;
       const newQuotation = { 
         id, 
+        messageId: params.messageId,
+        userId,
         ...params,
+        ofRate,
+        localCharges,
+        otherCharges,
+        totalCost,
+        createdBy: userId,
         createdAt: new Date().toISOString()
       };
       mockData.quotations.push(newQuotation);
@@ -243,6 +295,7 @@ const tools = [
       return { 
         success: true, 
         quotationId: id, 
+        totalCost,
         message: `报价记录已添加: ${id}`,
         quotation: newQuotation
       };
@@ -296,14 +349,17 @@ const tools = [
   },
   {
     name: 'search_inquiry',
-    description: '搜索询价记录',
+    description: '搜索询价记录（仅返回当前用户的数据）',
     parameters: {
+      userId: { type: 'string', description: '当前用户ID' },
       keyword: { type: 'string', description: '搜索关键词（客户名/询价单号/货物品名/路线）' },
       pol: { type: 'string', description: '起运港（可选）' },
       pod: { type: 'string', description: '目的港（可选）' },
+      status: { type: 'string', description: '状态筛选（可选）' },
     },
-    handler: ({ keyword, pol, pod }) => {
-      let results = mockData.inquiries;
+    handler: ({ userId, keyword, pol, pod, status }) => {
+      const uid = userId || process.env.DEFAULT_USER_ID || 'anonymous';
+      let results = mockData.inquiries.filter(i => i.userId === uid);
       
       if (keyword) {
         const lowerKeyword = keyword.toLowerCase();
@@ -324,7 +380,101 @@ const tools = [
         results = results.filter(i => i.pod && i.pod.includes(pod));
       }
       
+      if (status) {
+        results = results.filter(i => i.status === status);
+      }
+      
       return { inquiries: results, count: results.length };
+    }
+  },
+  {
+    name: 'get_my_inquiries',
+    description: '获取当前用户的询价记录',
+    parameters: {
+      userId: { type: 'string', description: '当前用户ID' },
+      status: { type: 'string', description: '状态筛选（可选）' },
+      startDate: { type: 'string', description: '开始日期（可选）' },
+      endDate: { type: 'string', description: '结束日期（可选）' },
+    },
+    handler: ({ userId, status, startDate, endDate }) => {
+      const uid = userId || process.env.DEFAULT_USER_ID || 'anonymous';
+      let results = mockData.inquiries.filter(i => i.userId === uid);
+      
+      if (status) {
+        results = results.filter(i => i.status === status);
+      }
+      
+      if (startDate) {
+        results = results.filter(i => i.createdAt >= startDate);
+      }
+      
+      if (endDate) {
+        results = results.filter(i => i.createdAt <= endDate);
+      }
+      
+      results.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      return { inquiries: results, count: results.length };
+    }
+  },
+  {
+    name: 'get_my_quotations',
+    description: '获取当前用户的报价记录',
+    parameters: {
+      userId: { type: 'string', description: '当前用户ID' },
+      inquiryId: { type: 'string', description: '关联询价单号（可选）' },
+      supplierId: { type: 'string', description: '供应商ID（可选）' },
+    },
+    handler: ({ userId, inquiryId, supplierId }) => {
+      const uid = userId || process.env.DEFAULT_USER_ID || 'anonymous';
+      let results = mockData.quotations.filter(q => q.userId === uid);
+      
+      if (inquiryId) {
+        results = results.filter(q => q.inquiryId === inquiryId);
+      }
+      
+      if (supplierId) {
+        results = results.filter(q => q.supplierId === supplierId);
+      }
+      
+      results.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      return { quotations: results, count: results.length };
+    }
+  },
+  {
+    name: 'check_inquiry_exists',
+    description: '检查邮件是否已添加询价（基于 messageId）',
+    parameters: {
+      messageId: { type: 'string', description: '邮件唯一标识' },
+      userId: { type: 'string', description: '当前用户ID' },
+    },
+    handler: ({ messageId, userId }) => {
+      const uid = userId || process.env.DEFAULT_USER_ID || 'anonymous';
+      const inquiry = mockData.inquiries.find(i => i.messageId === messageId && i.userId === uid);
+      if (inquiry) {
+        return { exists: true, inquiryId: inquiry.id, status: inquiry.status, inquiry };
+      }
+      return { exists: false };
+    }
+  },
+  {
+    name: 'add_supplier',
+    description: '添加新供应商',
+    parameters: {
+      userId: { type: 'string', description: '当前用户ID' },
+      name: { type: 'string', description: '供应商名称' },
+      contact: { type: 'string', description: '联系人' },
+      email: { type: 'string', description: '邮箱' },
+      phone: { type: 'string', description: '电话' },
+      address: { type: 'string', description: '地址' },
+      products: { type: 'array', description: '服务产品' },
+      remarks: { type: 'string', description: '备注' },
+    },
+    handler: (params) => {
+      const id = `S${String(mockData.suppliers.length + 1).padStart(3, '0')}`;
+      const newSupplier = { id, ...params, rating: 0, createdBy: params.userId };
+      mockData.suppliers.push(newSupplier);
+      saveData(mockData);
+      return { success: true, supplierId: id, supplier: newSupplier };
     }
   },
 ];

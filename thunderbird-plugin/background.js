@@ -4,16 +4,45 @@
 let chatTabId = null;
 const DEBUG = true;
 
-// API 配置 - 根据环境设置
-// 开发环境：http://localhost:3000
+// 从 manifest.json 或环境变量加载配置
+// 开发环境：http://localhost:3002
 // 生产环境：https://koudai.xin
-const API_BASE_URL = 'https://koudai.xin';  // 生产环境域名
+async function loadConfig() {
+  try {
+    // 尝试从 storage 读取配置（用户可手动设置）
+    const stored = await browser.storage.local.get(['apiBaseUrl', 'accessPassword', 'nodeEnv']);
+    
+    if (stored.apiBaseUrl) {
+      log('从 storage 加载配置:', stored.nodeEnv || 'custom');
+      return {
+        API_BASE_URL: stored.apiBaseUrl,
+        ACCESS_PASSWORD: stored.accessPassword || 'koudai123',
+        NODE_ENV: stored.nodeEnv || 'production'
+      };
+    }
+  } catch (e) {
+    warn('无法从 storage 读取配置:', e);
+  }
+  
+  // 默认生产环境配置
+  return {
+    API_BASE_URL: 'https://koudai.xin',
+    ACCESS_PASSWORD: 'koudai123',
+    NODE_ENV: 'production'
+  };
+}
 
-// 发送配置给聊天窗口（使用非流式接口，避免 CORS 问题）
-const configMessage = {
-  type: 'config',
-  apiUrl: API_BASE_URL + '/api/chat'  // 非流式，之前能工作的版本
-};
+// 全局配置
+let appConfig = null;
+
+// 初始化配置
+async function initConfig() {
+  appConfig = await loadConfig();
+  log('配置已加载:', appConfig.NODE_ENV, appConfig.API_BASE_URL);
+}
+
+// 启动时初始化
+initConfig();
 
 function log(...args) {
   if (DEBUG) {
@@ -151,10 +180,20 @@ if (browser.messageDisplayAction && browser.messageDisplayAction.onClicked) {
       setTimeout(() => {
         log('sending message to chat window...');
         
+        // 确保配置已加载
+        if (!appConfig) {
+          appConfig = {
+            API_BASE_URL: 'https://koudai.xin',
+            ACCESS_PASSWORD: 'koudai123'
+          };
+        }
+        
         // 先发送配置（非流式接口）
         browser.tabs.sendMessage(chatTabId, {
           type: 'config',
-          apiUrl: API_BASE_URL + '/api/chat'  // 非流式，解决 CORS 问题
+          apiUrl: appConfig.API_BASE_URL + '/api/chat',
+          accessPassword: appConfig.ACCESS_PASSWORD,
+          nodeEnv: appConfig.NODE_ENV
         }).then(() => {
           log('config sent successfully');
         }).catch(err => {

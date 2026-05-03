@@ -1,8 +1,8 @@
 // Chat window script
 
-// API URL 配置 - 非流式接口（避免 CORS 和流式问题）
-const API_URL = 'https://koudai.xin/api/chat';  // 非流式，与之前能工作的版本一致
-const ACCESS_PASSWORD = 'koudai123'; // 访问密码 - 注意：客户端密码仅用于简单验证，生产环境应使用更安全的方式
+// API URL 和访问密码 - 从 background.js 动态接收配置
+let API_URL = 'https://koudai.xin/api/chat';  // 默认生产环境
+let ACCESS_PASSWORD = 'koudai123'; // 默认密码
 
 // DOM 元素
 const emailFromEl = document.getElementById('email-from');
@@ -24,9 +24,22 @@ let conversationHistory = [];
 let currentEmail = null;
 let abortController = null; // 用于取消请求
 
-// 监听来自 background.js 的邮件数据
+// 监听来自 background.js 的消息
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('收到消息:', message);
+
+  if (message.type === 'config') {
+    // 接收配置
+    if (message.apiUrl) {
+      API_URL = message.apiUrl;
+      console.log('[Config] API_URL 已更新:', API_URL);
+    }
+    if (message.accessPassword) {
+      ACCESS_PASSWORD = message.accessPassword;
+      console.log('[Config] ACCESS_PASSWORD 已更新');
+    }
+    sendResponse({ success: true });
+  }
 
   if (message.type === 'emailContent') {
     currentEmail = message;

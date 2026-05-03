@@ -1,0 +1,235 @@
+{
+  "shipments": [
+    {
+      "id": "SH001",
+      "from": "Shanghai",
+      "to": "Los Angeles",
+      "status": "In Transit",
+      "eta": "2024-05-20"
+    },
+    {
+      "id": "SH002",
+      "from": "Shenzhen",
+      "to": "Rotterdam",
+      "status": "Delivered",
+      "eta": "2024-05-15"
+    },
+    {
+      "id": "SH003",
+      "from": "Ningbo",
+      "to": "Hamburg",
+      "status": "Pending",
+      "eta": "2024-05-25"
+    }
+  ],
+  "rates": {
+    "Shanghai-Los Angeles": {
+      "fcl": 3200,
+      "lcl": 45
+    },
+    "Shenzhen-Rotterdam": {
+      "fcl": 2800,
+      "lcl": 38
+    },
+    "Ningbo-Hamburg": {
+      "fcl": 3000,
+      "lcl": 42
+    }
+  },
+  "customers": [
+    {
+      "id": "C001",
+      "name": "ABC Trading",
+      "email": "abc@example.com",
+      "country": "USA"
+    },
+    {
+      "id": "C002",
+      "name": "XYZ Logistics",
+      "email": "xyz@example.com",
+      "country": "Germany"
+    },
+    {
+      "id": "C003",
+      "name": "Global Freight",
+      "email": "global@example.com",
+      "country": "Netherlands"
+    }
+  ],
+  "suppliers": [
+    {
+      "id": "S001",
+      "name": "上海远洋物流",
+      "contact": "张经理",
+      "phone": "13800138001",
+      "email": "shanghai@oceanlogistics.com",
+      "address": "上海市浦东新区",
+      "products": [
+        "海运",
+        "空运",
+        "仓储"
+      ],
+      "rating": 4.8
+    },
+    {
+      "id": "S002",
+      "name": "深圳速达供应链",
+      "contact": "李总监",
+      "phone": "13900139002",
+      "email": "sz@suda-supply.com",
+      "address": "深圳市南山区",
+      "products": [
+        "快递",
+        "仓储",
+        "报关"
+      ],
+      "rating": 4.5
+    },
+    {
+      "id": "S003",
+      "name": "宁波港务集团",
+      "contact": "王部长",
+      "phone": "13700137003",
+      "email": "wang@nbport.com",
+      "address": "宁波市北仑区",
+      "products": [
+        "港口服务",
+        "集装箱",
+        "拖车"
+      ],
+      "rating": 4.9
+    },
+    {
+      "id": "S004",
+      "name": "青岛海丰物流",
+      "contact": "赵经理",
+      "phone": "13600136004",
+      "email": "zhao@haifeng-logistics.com",
+      "address": "青岛市黄岛区",
+      "products": [
+        "海运",
+        "拼箱",
+        "报关"
+      ],
+      "rating": 4.6
+    },
+    {
+      "id": "S005",
+      "name": "厦门联合航运",
+      "contact": "陈主管",
+      "phone": "13500135005",
+      "email": "chen@unishipping.com",
+      "address": "厦门市湖里区",
+      "products": [
+        "海运",
+        "空运",
+        "货运代理"
+      ],
+      "rating": 4.7
+    }
+  ],
+  "inquiries": [
+    {
+      "id": "INQ-2024-001",
+      "messageId": "msg-001",
+      "userId": "demo_user",
+      "customerName": "ABC Trading",
+      "emailId": "email-001",
+      "emailSubject": "询价：上海到洛杉矶电子产品",
+      "inquiryDate": "2024-05-10",
+      "pol": "Shanghai",
+      "pod": "Los Angeles",
+      "cargoName": "Electronics",
+      "containerType": "1x40HQ",
+      "volume": 60,
+      "weight": 18000,
+      "etd": "2024-06-01",
+      "specialRequirements": "需要温控",
+      "completeness": 100,
+      "status": "inquiry",
+      "createdBy": "demo_user",
+      "createdAt": "2024-05-10T10:00:00Z"
+    },
+    {
+      "id": "INQ-2026-002",
+      "messageId": "msg-inquiry-001",
+      "userId": "demo_user",
+      "customerName": "John Smith <john@abctrading.com>",
+      "emailId": "msg-inquiry-001",
+      "emailSubject": "询价：上海到洛杉矶电子产品运输",
+      "inquiryDate": "2024-05-10",
+      "completeness": 15,
+      "status": "draft",
+      "createdBy": "demo_user",
+      "createdAt": "2026-05-03T03:52:53.273Z"
+    },
+    {
+      "id": "INQ-2026-003",
+      "userId": "demo_user",
+      "completeness": 0,
+      "status": "draft",
+      "createdBy": "demo_user",
+      "createdAt": "2026-05-03T04:52:27.601Z"
+    },
+    {
+      "id": "INQ-2026-004",
+      "userId": "demo_user",
+      "completeness": 0,
+      "status": "draft",
+      "createdBy": "demo_user",
+      "createdAt": "2026-05-03T04:56:18.586Z"
+    },
+    {
+      "id": "INQ-2026-005",
+      "userId": "demo_user",
+      "completeness": 0,
+      "status": "draft",
+      "createdBy": "demo_user",
+      "createdAt": "2026-05-03T05:01:04.077Z"
+    }
+  ],
+  "quotations": [
+    {
+      "id": "QUO-2024-001",
+      "messageId": "msg-002",
+      "userId": "demo_user",
+      "inquiryId": "INQ-2024-001",
+      "supplierId": "S001",
+      "supplierName": "上海远洋物流",
+      "emailId": "email-003",
+      "quoteDate": "2024-05-11",
+      "pol": "Shanghai",
+      "pod": "Los Angeles",
+      "ofRate": 3200,
+      "localCharges": 450,
+      "otherCharges": 0,
+      "totalCost": 3650,
+      "containerType": "1x40HQ",
+      "validDate": "2024-06-30",
+      "transitTime": "14 days",
+      "vesselName": "MSC Leo",
+      "remarks": "价格最优",
+      "createdBy": "demo_user",
+      "createdAt": "2024-05-11T10:00:00Z"
+    },
+    {
+      "id": "QUO-2026-002",
+      "userId": "demo_user",
+      "inquiryId": "INQ-2026-002",
+      "supplierId": "S001",
+      "supplierName": "上海远洋物流",
+      "pol": "",
+      "pod": "",
+      "containerType": "",
+      "validDate": "",
+      "remarks": "",
+      "quoteDate": "2026-05-03",
+      "ofRate": 0,
+      "localCharges": 0,
+      "otherCharges": 0,
+      "totalCost": 0,
+      "createdBy": "demo_user",
+      "createdAt": "2026-05-03T03:53:49.153Z"
+    }
+  ]
+}
