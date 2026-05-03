@@ -11,6 +11,7 @@
   },
   "permissions": [
     "messagesRead",
+    "accountsRead",
     "tabs",
     "storage"
   ],

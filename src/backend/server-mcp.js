@@ -461,6 +461,256 @@ app.post('/api/chat/stream', async (req, res) => {
   }
 });
 
+// ========== 询价/报价管理路由（从 server.js 迁移）==========
+
+// Mock 数据存储
+const mockData = {
+  inquiries: [],
+  quotations: [],
+  suppliers: [
+    { id: 'S001', name: '上海远洋物流', contact: '张经理', phone: '13800138001', email: 'shanghai@oceanlogistics.com', address: '上海市浦东新区', products: ['海运', '空运', '仓储'], rating: 4.8 },
+    { id: 'S002', name: '深圳速达供应链', contact: '李总监', phone: '13900139002', email: 'sz@suda-supply.com', address: '深圳市南山区', products: ['快递', '仓储', '报关'], rating: 4.5 },
+    { id: 'S003', name: '宁波港务集团', contact: '王部长', phone: '13700137003', email: 'wang@nbport.com', address: '宁波市北仑区', products: ['港口服务', '集装箱', '拖车'], rating: 4.9 },
+    { id: 'S004', name: '青岛海丰物流', contact: '赵经理', phone: '13600136004', email: 'zhao@haifeng-logistics.com', address: '青岛市黄岛区', products: ['海运', '拼箱', '报关'], rating: 4.6 },
+    { id: 'S005', name: '厦门联合航运', contact: '陈主管', phone: '13500135005', email: 'chen@unishipping.com', address: '厦门市湖里区', products: ['海运', '空运', '货运代理'], rating: 4.7 },
+  ]
+};
+
+// 访问密码验证中间件
+function requirePassword(req, res, next) {
+  const authHeader = req.headers.authorization;
+  const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || 'koudai123';
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ 
+      error: '需要访问密码',
+      message: '请在请求头中提供 Authorization: Bearer <密码>'
+    });
+  }
+  
+  const token = authHeader.substring(7);
+  
+  if (token !== ACCESS_PASSWORD) {
+    return res.status(403).json({ 
+      error: '访问被拒绝',
+      message: '密码错误'
+    });
+  }
+  
+  next();
+}
+
+// 检查询价是否已存在
+app.post('/api/mcp/check_inquiry_exists', requirePassword, async (req, res) => {
+  try {
+    const { messageId, userId } = req.body;
+    
+    const existing = mockData.inquiries.find(i => 
+      i.messageId === messageId && i.userId === userId
+    );
+    
+    if (existing) {
+      res.json({
+        exists: true,
+        inquiryId: existing.id,
+        status: existing.status
+      });
+    } else {
+      res.json({ exists: false });
+    }
+  } catch (error) {
+    res.status(500).json({ error: '检查失败', details: error.message });
+  }
+});
+
+// 添加询价记录
+app.post('/api/mcp/add_inquiry_record', requirePassword, async (req, res) => {
+  try {
+    const { userId, messageId, customerName, emailSubject, extractedData, completeness, status } = req.body;
+    
+    // 检查是否已存在
+    const existing = mockData.inquiries.find(i => 
+      i.messageId === messageId && i.userId === userId
+    );
+    
+    if (existing) {
+      return res.json({
+        exists: true,
+        inquiryId: existing.id,
+        status: existing.status
+      });
+    }
+    
+    // 生成询价单号
+    const year = new Date().getFullYear();
+    const id = `INQ-${year}-${String(mockData.inquiries.length + 1).padStart(3, '0')}`;
+    
+    // 保存到 mockData
+    const newInquiry = {
+      id,
+      userId,
+      messageId,
+      customerName,
+      emailSubject,
+      ...extractedData,
+      completeness,
+      status,
+      createdAt: new Date().toISOString()
+    };
+    mockData.inquiries.push(newInquiry);
+    
+    res.json({
+      inquiryId: id,
+      status,
+      completeness
+    });
+  } catch (error) {
+    res.status(500).json({ error: '添加失败', details: error.message });
+  }
+});
+
+// 搜索询价单
+app.post('/api/mcp/search_inquiries', requirePassword, async (req, res) => {
+  try {
+    const { userId, keyword, page = 1, pageSize = 10 } = req.body;
+    
+    let results = mockData.inquiries.filter(i => i.userId === userId);
+    
+    if (keyword) {
+      const lowerKeyword = keyword.toLowerCase();
+      results = results.filter(i => 
+        i.id.toLowerCase().includes(lowerKeyword) ||
+        (i.pol && i.pol.toLowerCase().includes(lowerKeyword)) ||
+        (i.pod && i.pod.toLowerCase().includes(lowerKeyword)) ||
+        (i.cargoName && i.cargoName.toLowerCase().includes(lowerKeyword))
+      );
+    }
+    
+    const total = results.length;
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize;
+    const paginatedResults = results.slice(start, end);
+    
+    res.json({ 
+      inquiries: paginatedResults,
+      total,
+      page,
+      pageSize
+    });
+  } catch (error) {
+    res.status(500).json({ error: '搜索失败', details: error.message });
+  }
+});
+
+// 获取当前用户的询价记录
+app.post('/api/mcp/get_my_inquiries', requirePassword, async (req, res) => {
+  try {
+    const { userId, limit = 10 } = req.body;
+    
+    const results = mockData.inquiries
+      .filter(i => i.userId === userId)
+      .slice(0, limit);
+    
+    res.json({ inquiries: results });
+  } catch (error) {
+    res.status(500).json({ error: '获取失败', details: error.message });
+  }
+});
+
+// 添加报价记录
+app.post('/api/mcp/add_quotation_record', requirePassword, async (req, res) => {
+  try {
+    const { userId, inquiryId, supplierId, supplierName, extractedData } = req.body;
+    
+    // 生成报价单号
+    const year = new Date().getFullYear();
+    const id = `QUO-${year}-${String(mockData.quotations.length + 1).padStart(3, '0')}`;
+    
+    // 保存到 mockData
+    const newQuotation = {
+      id,
+      userId,
+      inquiryId,
+      supplierId,
+      supplierName,
+      ...extractedData,
+      createdBy: userId,
+      createdAt: new Date().toISOString()
+    };
+    mockData.quotations.push(newQuotation);
+    
+    res.json({
+      quotationId: id,
+      inquiryId,
+      supplierName
+    });
+  } catch (error) {
+    res.status(500).json({ error: '添加失败', details: error.message });
+  }
+});
+
+// 搜索供应商
+app.post('/api/mcp/search_supplier', requirePassword, async (req, res) => {
+  try {
+    const { keyword, page = 1, pageSize = 10 } = req.body;
+    
+    let results = [...mockData.suppliers];
+    
+    if (keyword) {
+      const lowerKeyword = keyword.toLowerCase();
+      results = results.filter(s => 
+        s.name.toLowerCase().includes(lowerKeyword) ||
+        s.id.toLowerCase().includes(lowerKeyword) ||
+        (s.contact && s.contact.toLowerCase().includes(lowerKeyword))
+      );
+    }
+    
+    const total = results.length;
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize;
+    const paginatedResults = results.slice(start, end);
+    
+    res.json({ 
+      suppliers: paginatedResults,
+      total,
+      page,
+      pageSize
+    });
+  } catch (error) {
+    res.status(500).json({ error: '搜索失败', details: error.message });
+  }
+});
+
+// 获取指定询价单的报价列表
+app.post('/api/mcp/get_quotations_by_inquiry', requirePassword, async (req, res) => {
+  try {
+    const { inquiryId, userId } = req.body;
+    
+    const results = mockData.quotations.filter(q => 
+      q.inquiryId === inquiryId && q.userId === userId
+    );
+    
+    res.json({ quotations: results });
+  } catch (error) {
+    res.status(500).json({ error: '获取失败', details: error.message });
+  }
+});
+
+// 获取当前用户的报价记录
+app.post('/api/mcp/get_my_quotations', requirePassword, async (req, res) => {
+  try {
+    const { userId, limit = 10 } = req.body;
+    
+    const results = mockData.quotations
+      .filter(q => q.userId === userId)
+      .slice(0, limit);
+    
+    res.json({ quotations: results });
+  } catch (error) {
+    res.status(500).json({ error: '获取失败', details: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 服务器运行在 http://localhost:${PORT}`);
   console.log(`📱 聊天页面：http://localhost:${PORT}/chat.html`);

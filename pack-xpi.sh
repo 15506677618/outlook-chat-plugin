@@ -27,7 +27,7 @@ plugin_dir = "$PLUGIN_DIR"
 with zipfile.ZipFile(xpi_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
     # 添加根目录文件
     root_files = ['manifest.json', 'background.js', 'chat-window.js', 
-                  'chat-window.html', 'button-style.css']
+                  'chat-window.html', 'button-style.css', 'config.js', 'styles.css']
     
     for file in root_files:
         filepath = os.path.join(plugin_dir, file)

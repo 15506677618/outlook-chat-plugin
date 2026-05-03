@@ -272,6 +272,27 @@ if (browser.messageDisplay && browser.messageDisplay.onMessageDisplayed) {
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   log('runtime.onMessage received:', message);
 
+  if (message.type === 'getConfig') {
+    log('processing getConfig request');
+    
+    // 确保配置已加载
+    if (!appConfig) {
+      appConfig = {
+        API_BASE_URL: 'https://koudai.xin',
+        ACCESS_PASSWORD: 'koudai123',
+        NODE_ENV: 'production'
+      };
+    }
+    
+    sendResponse({
+      type: 'config',
+      apiUrl: appConfig.API_BASE_URL + '/api/chat',
+      accessPassword: appConfig.ACCESS_PASSWORD,
+      nodeEnv: appConfig.NODE_ENV
+    });
+    return true;
+  }
+
   if (message.type === 'getEmailContent') {
     log('processing getEmailContent request');
 
@@ -339,6 +360,12 @@ async function getEmailConversation(messageId) {
 // ============================
 async function getUserEmail() {
   try {
+    // 检查 browser.identities API 是否可用
+    if (!browser.identities || !browser.identities.list) {
+      warn('browser.identities API not available');
+      return null;
+    }
+    
     const identities = await browser.identities.list();
     if (identities && identities.length > 0) {
       // 返回第一个身份（主邮箱）

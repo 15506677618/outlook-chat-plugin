@@ -20,7 +20,7 @@ sleep 2
 
 # 启动主后端服务器 (端口 3002)
 echo "🖥️ 启动主后端服务器..."
-node src/backend/server.js &
+node src/backend/server-mcp.js &
 BACKEND_PID=$!
 
 sleep 2
