@@ -19,7 +19,7 @@ const envFile = process.env.NODE_ENV === 'production' ? 'prod.env' : 'local.env'
 dotenv.config({ path: join(__dirname, '..', '..', envFile) });
 
 const app = express();
-const PORT = process.env.PORT || 3002; // 改为3002，避免与server-mcp.js冲突
+const PORT = process.env.PORT || 3000; // 默认 3000 端口
 
 // SiliconFlow AI 配置
 const SILICONFLOW_API_URL = 'https://api.siliconflow.cn/v1/chat/completions';
