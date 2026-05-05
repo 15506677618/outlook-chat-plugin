@@ -88,6 +88,19 @@ window.addEventListener('message', (event) => {
 function handleEmailContent(emailData) {
   currentEmail = emailData;
   
+  // 确保 messageId 存在（从 conversation 或生成一个）
+  if (!currentEmail.messageId) {
+    if (currentEmail.conversation && currentEmail.conversation.length > 0 && currentEmail.conversation[0].id) {
+      currentEmail.messageId = currentEmail.conversation[0].id;
+    } else if (currentEmail.id) {
+      currentEmail.messageId = currentEmail.id;
+    } else {
+      // 生成一个基于主题的临时 ID
+      currentEmail.messageId = 'msg-' + (currentEmail.subject || 'unknown') + '-' + Date.now();
+    }
+    console.log('[handleEmailContent] 生成 messageId:', currentEmail.messageId);
+  }
+  
   // 更新邮件显示区域
   const emailFromEl = document.getElementById('email-from');
   const emailSubjectEl = document.getElementById('email-subject');
@@ -773,8 +786,21 @@ if (btnAddInquiry) {
       return;
     }
     
+    // 检查邮件是否与询价相关
+    const isInquiryRelated = checkIfInquiryRelated(currentEmail.body);
+    if (!isInquiryRelated) {
+      addMessage(`⚠️ 此邮件内容与货运询价无关
+
+邮件主题：${currentEmail.subject}
+
+只有包含货运、物流、询价、报价等相关内容的邮件才能添加为询价记录。`, false);
+      return;
+    }
+    
     // 检查是否已添加
     try {
+      console.log('[添加询价] 检查是否存在 - messageId:', currentEmail.messageId, 'userId:', currentUserId);
+      
       const checkRes = await fetch(`${MCP_API_URL}/check_inquiry_exists`, {
         method: 'POST',
         headers: {
@@ -789,6 +815,8 @@ if (btnAddInquiry) {
       
       if (checkRes.ok) {
         const checkData = await checkRes.json();
+        console.log('[添加询价] 检查结果:', checkData);
+        
         // 处理嵌套的 result 结构
         const result = checkData.result || checkData;
         if (result.exists) {
@@ -797,12 +825,12 @@ if (btnAddInquiry) {
 单号：${result.inquiryId}
 状态：${result.status}
 
-[查看详情] [添加报价] [取消]`, false);
+[查看详情] [添加报价] [继续聊天]`, false);
           return;
         }
       }
     } catch (e) {
-      console.log('检查失败，继续添加');
+      console.log('[添加询价] 检查失败，继续添加:', e);
     }
     
     // 提取邮件信息
@@ -894,6 +922,48 @@ if (btnAddInquiry) {
   });
 }
 
+// 检查邮件是否与询价相关
+function checkIfInquiryRelated(body) {
+  if (!body || typeof body !== 'string') {
+    return false;
+  }
+  
+  // 定义与货运询价相关的关键词
+  const inquiryKeywords = [
+    // 中文关键词
+    '询价', '报价', '运费', '海运', '空运', '陆运', '物流', '货运',
+    '集装箱', '整箱', '拼箱', 'FCL', 'LCL', '货代', '船运', '港口',
+    '起运港', '目的港', 'POL', 'POD', '提单', 'B/L', '订舱',
+    '柜型', '箱型', '20GP', '40GP', '40HQ', '45HQ', '柜量',
+    '吨', 'kg', 'CBM', '方', '重量', '体积', '货重',
+    '船期', '船名', '航次', 'ETD', 'ETA', '预计到港',
+    '运费', '海运费', '附加费', 'THC', '文件费', '码头费',
+    // 英文关键词
+    'inquiry', 'quotation', 'quote', 'freight', 'shipping', 'cargo',
+    'container', 'FCL', 'LCL', 'logistics', 'forwarder', 'vessel',
+    'port of loading', 'port of discharge', 'POL', 'POD',
+    'bill of lading', 'booking', 'shipment', 'consignment',
+    '20ft', '40ft', '40HQ', 'TEU', 'container type',
+    'weight', 'volume', 'CBM', 'tons', 'kg',
+    'freight cost', 'ocean freight', 'local charges'
+  ];
+  
+  const lowerBody = body.toLowerCase();
+  
+  // 检查是否包含至少 2 个相关关键词（避免误判）
+  let matchCount = 0;
+  for (const keyword of inquiryKeywords) {
+    if (lowerBody.includes(keyword.toLowerCase())) {
+      matchCount++;
+      if (matchCount >= 2) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
 // 提取字段函数
 function extractField(body, fieldName) {
   if (!body || typeof body !== 'string') {
@@ -944,6 +1014,37 @@ console.log('报价侧边栏元素:', {
 if (btnCloseQuotationSidebar) {
   btnCloseQuotationSidebar.addEventListener('click', () => {
     if (quotationSidebar) quotationSidebar.style.display = 'none';
+  });
+}
+
+// 存储搜索状态
+let myInquiriesSearchState = {
+  keyword: '',
+  filteredData: []
+};
+
+// 返回按钮 - 从报价侧边栏返回到我的询价列表
+const btnBackToInquiries = getElement('btn-back-to-inquiries');
+if (btnBackToInquiries) {
+  btnBackToInquiries.addEventListener('click', () => {
+    console.log('返回按钮点击');
+    // 隐藏报价侧边栏
+    if (quotationSidebar) quotationSidebar.style.display = 'none';
+    // 显示我的询价侧边栏
+    if (myInquiriesSidebar) {
+      myInquiriesSidebar.style.display = 'flex';
+      // 恢复搜索框的值
+      const searchInput = document.getElementById('my-inquiries-search');
+      if (searchInput && myInquiriesSearchState.keyword) {
+        searchInput.value = myInquiriesSearchState.keyword;
+      }
+      // 恢复搜索后的列表，不重新加载
+      if (myInquiriesSearchState.filteredData.length > 0) {
+        renderInquiriesList(myInquiriesSearchState.filteredData);
+      } else if (currentInquiriesData.length > 0) {
+        renderInquiriesList(currentInquiriesData);
+      }
+    }
   });
 }
 
@@ -1438,6 +1539,84 @@ if (btnCloseMyInquiries) {
   });
 }
 
+// 存储当前询价列表数据
+let currentInquiriesData = [];
+
+// 渲染询价列表函数
+function renderInquiriesList(inquiries) {
+  if (!myInquiriesContent) return;
+  
+  if (inquiries.length === 0) {
+    myInquiriesContent.innerHTML = '<div class="quotation-empty">暂无询价记录</div>';
+    return;
+  }
+  
+  // 渲染询价列表
+  myInquiriesContent.innerHTML = inquiries.map((item, index) => `
+    <div class="quotation-card" data-inquiry-id="${item.id}">
+      <div class="quotation-card-title">#${index + 1} ${item.id}</div>
+      <div class="quotation-card-info">
+        <strong>路线：</strong>${item.pol || '-'} → ${item.pod || '-'}<br>
+        <strong>货物：</strong>${item.cargoName || '-'}<br>
+        <strong>箱型：</strong>${item.containerType || '-'}<br>
+        <strong>状态：</strong>${item.status || '-'}<br>
+        <strong>日期：</strong>${item.inquiryDate || '-'}
+      </div>
+      <div class="quotation-actions">
+        <button class="btn-view" data-action="view" data-inquiry-id="${item.id}">查看报价</button>
+        <button class="btn-add" data-action="add" data-inquiry-id="${item.id}">添加报价</button>
+      </div>
+    </div>
+  `).join('');
+  
+  // 绑定按钮点击事件（事件委托）
+  myInquiriesContent.querySelectorAll('.btn-view').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const inquiryId = btn.dataset.inquiryId;
+      console.log('查看报价按钮点击:', inquiryId);
+      loadQuotationsForInquiry(inquiryId);
+    });
+  });
+  
+  myInquiriesContent.querySelectorAll('.btn-add').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const inquiryId = btn.dataset.inquiryId;
+      console.log('添加报价按钮点击:', inquiryId);
+      showAddQuotationForInquiry(inquiryId);
+    });
+  });
+}
+
+// 搜索询价列表函数
+function filterInquiries(keyword) {
+  // 保存搜索关键词
+  myInquiriesSearchState.keyword = keyword || '';
+  
+  if (!keyword || keyword.trim() === '') {
+    myInquiriesSearchState.filteredData = currentInquiriesData;
+    renderInquiriesList(currentInquiriesData);
+    return;
+  }
+  
+  const lowerKeyword = keyword.toLowerCase().trim();
+  const filtered = currentInquiriesData.filter(item => {
+    return (
+      (item.id && item.id.toLowerCase().includes(lowerKeyword)) ||
+      (item.pol && item.pol.toLowerCase().includes(lowerKeyword)) ||
+      (item.pod && item.pod.toLowerCase().includes(lowerKeyword)) ||
+      (item.cargoName && item.cargoName.toLowerCase().includes(lowerKeyword)) ||
+      (item.containerType && item.containerType.toLowerCase().includes(lowerKeyword)) ||
+      (item.status && item.status.toLowerCase().includes(lowerKeyword))
+    );
+  });
+  
+  // 保存过滤后的数据
+  myInquiriesSearchState.filteredData = filtered;
+  renderInquiriesList(filtered);
+}
+
 const btnMyInquiries = document.getElementById('btn-my-inquiries');
 if (btnMyInquiries) {
   btnMyInquiries.addEventListener('click', async () => {
@@ -1454,6 +1633,10 @@ if (btnMyInquiries) {
     myInquiriesSidebar.style.display = 'flex';
     myInquiriesContent.innerHTML = '<div class="quotation-empty">加载中...</div>';
     
+    // 清空搜索框
+    const searchInput = document.getElementById('my-inquiries-search');
+    if (searchInput) searchInput.value = '';
+    
     console.log('当前 MCP_API_URL:', MCP_API_URL);
     console.log('当前 userId:', currentUserId);
     
@@ -1468,7 +1651,7 @@ if (btnMyInquiries) {
         },
         body: JSON.stringify({
           userId: currentUserId,
-          limit: 10
+          limit: 100
         })
       });
       
@@ -1477,30 +1660,9 @@ if (btnMyInquiries) {
       if (res.ok) {
         const data = await res.json();
         console.log('获取询价列表数据:', data);
-        const inquiries = data.inquiries || [];
+        currentInquiriesData = data.inquiries || [];
         
-        if (inquiries.length === 0) {
-          myInquiriesContent.innerHTML = '<div class="quotation-empty">暂无询价记录</div>';
-          return;
-        }
-        
-        // 渲染询价列表
-        myInquiriesContent.innerHTML = inquiries.map((item, index) => `
-          <div class="quotation-card">
-            <div class="quotation-card-title">#${index + 1} ${item.id}</div>
-            <div class="quotation-card-info">
-              <strong>路线：</strong>${item.pol || '-'} → ${item.pod || '-'}<br>
-              <strong>货物：</strong>${item.cargoName || '-'}<br>
-              <strong>箱型：</strong>${item.containerType || '-'}<br>
-              <strong>状态：</strong>${item.status || '-'}<br>
-              <strong>日期：</strong>${item.inquiryDate || '-'}
-            </div>
-            <div class="quotation-actions">
-              <button class="btn-view" onclick="loadQuotationsForInquiry('${item.id}')">查看报价</button>
-              <button class="btn-add" onclick="showAddQuotationForInquiry('${item.id}')">添加报价</button>
-            </div>
-          </div>
-        `).join('');
+        renderInquiriesList(currentInquiriesData);
       } else {
         const errorText = await res.text();
         console.error('获取询价列表失败:', res.status, errorText);
@@ -1509,6 +1671,27 @@ if (btnMyInquiries) {
     } catch (error) {
       console.error('获取询价列表失败:', error);
       myInquiriesContent.innerHTML = `<div class="quotation-empty">获取失败: ${error.message}</div>`;
+    }
+  });
+}
+
+// 搜索按钮事件
+const btnSearchMyInquiries = document.getElementById('btn-search-my-inquiries');
+const myInquiriesSearchInput = document.getElementById('my-inquiries-search');
+
+if (btnSearchMyInquiries && myInquiriesSearchInput) {
+  btnSearchMyInquiries.addEventListener('click', () => {
+    const keyword = myInquiriesSearchInput.value;
+    console.log('搜索询价:', keyword);
+    filterInquiries(keyword);
+  });
+  
+  // 支持回车键搜索
+  myInquiriesSearchInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      const keyword = myInquiriesSearchInput.value;
+      console.log('搜索询价 (回车):', keyword);
+      filterInquiries(keyword);
     }
   });
 }

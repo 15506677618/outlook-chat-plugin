@@ -40,6 +40,7 @@
       <!-- 报价侧边栏 -->
       <div id="quotation-sidebar" class="quotation-sidebar" style="display:none;">
         <div class="quotation-sidebar-header">
+          <button id="btn-back-to-inquiries" class="btn-back" title="返回我的询价">← 返回</button>
           <h3>📋 询价与报价</h3>
           <button id="btn-close-quotation-sidebar" class="btn-close-sidebar">&times;</button>
         </div>
@@ -107,6 +108,10 @@
           <button id="btn-close-my-inquiries" class="btn-close-sidebar">&times;</button>
         </div>
         <div class="quotation-sidebar-content">
+          <div class="search-box-my-inquiries">
+            <input type="text" id="my-inquiries-search" placeholder="搜索询价单号、起运港、目的港、货物..." />
+            <button id="btn-search-my-inquiries" class="btn-search">搜索</button>
+          </div>
           <div id="my-inquiries-content"></div>
         </div>
       </div>
@@ -131,7 +136,6 @@
       </div>
       <div class="quick-actions">
         <button id="btn-add-inquiry" title="添加询价">➕ 添加询价</button>
-        <button id="btn-add-quotation" title="添加报价">💰 添加报价</button>
         <button id="btn-my-inquiries" title="我的询价">📋 我的询价</button>
       </div>
     </div>

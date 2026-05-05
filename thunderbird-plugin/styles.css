@@ -19,9 +19,9 @@ body {
 
 /* ========== 左侧邮件面板 ========== */
 #email-panel {
-  width: 50%;
-  max-width: 600px;
-  min-width: 400px;
+  width: 40%;
+  max-width: 450px;
+  min-width: 320px;
   background: #fff;
   border-right: 1px solid #e0e0e0;
   display: flex;
@@ -72,16 +72,17 @@ body {
 
 .email-meta {
   background: #f8f9fa;
-  padding: 16px;
+  padding: 12px;
   border-radius: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   border: 1px solid #e0e0e0;
 }
 
 .email-field {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   display: flex;
   gap: 8px;
+  font-size: 14px;
 }
 
 .email-field:last-child {
@@ -100,15 +101,23 @@ body {
 
 .email-body {
   background: #fff;
-  padding: 16px;
+  padding: 12px;
   border-radius: 8px;
   border: 1px solid #e0e0e0;
-  line-height: 1.6;
+  line-height: 1.4;
   color: #333;
+  font-size: 14px;
+}
+
+.email-body pre {
+  line-height: 1.4;
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 .email-body p {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
@@ -791,6 +800,27 @@ body {
 .quotation-sidebar-header h3 {
   font-size: 16px;
   font-weight: 600;
+  flex: 1;
+  text-align: center;
+}
+
+.btn-back {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.btn-back:hover {
+  background: rgba(255,255,255,0.3);
 }
 
 .btn-close-sidebar {
@@ -816,6 +846,44 @@ body {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+}
+
+/* 我的询价搜索框 */
+.search-box-my-inquiries {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 8px;
+}
+
+.search-box-my-inquiries input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+}
+
+.search-box-my-inquiries input:focus {
+  border-color: #667eea;
+}
+
+.search-box-my-inquiries .btn-search {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.search-box-my-inquiries .btn-search:hover {
+  opacity: 0.9;
 }
 
 .quotation-card {
