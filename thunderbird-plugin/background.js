@@ -340,8 +340,16 @@ async function getEmailConversation(messageId) {
     log('message:', message);
     log('fullMessage loaded');
 
+    // 获取邮件的 Message-ID 头（真正的唯一标识符）
+    let realMessageId = fullMessage.headers['message-id']?.[0] || fullMessage.headers['Message-ID']?.[0];
+    if (!realMessageId) {
+      // 如果没有 Message-ID，使用 Thunderbird 内部 ID
+      realMessageId = 'tb-' + message.id;
+    }
+    log('realMessageId:', realMessageId);
+
     return [{
-      id: message.id,
+      id: realMessageId,
       subject: message.subject,
       from: formatAuthor(message.author),
       date: formatDate(message.date),

@@ -105,11 +105,36 @@ function handleEmailContent(emailData) {
   const emailFromEl = document.getElementById('email-from');
   const emailSubjectEl = document.getElementById('email-subject');
   const emailDateEl = document.getElementById('email-date');
+  const emailMessageIdEl = document.getElementById('email-message-id');
   const emailBodyEl = document.getElementById('email-body');
+  
+  console.log('[邮件加载] DOM元素检查:', {
+    emailFromEl: !!emailFromEl,
+    emailSubjectEl: !!emailSubjectEl,
+    emailDateEl: !!emailDateEl,
+    emailMessageIdEl: !!emailMessageIdEl,
+    emailBodyEl: !!emailBodyEl
+  });
   
   if (emailFromEl) emailFromEl.textContent = currentEmail.from || '-';
   if (emailSubjectEl) emailSubjectEl.textContent = currentEmail.subject || '-';
   if (emailDateEl) emailDateEl.textContent = currentEmail.date || '-';
+  if (emailMessageIdEl) {
+    // 使用 setTimeout 确保 DOM 更新
+    setTimeout(() => {
+      emailMessageIdEl.textContent = String(currentEmail.messageId || '-');
+      emailMessageIdEl.style.display = 'inline';
+      emailMessageIdEl.style.visibility = 'visible';
+      console.log('[邮件加载] 已设置messageId到DOM:', currentEmail.messageId);
+    }, 0);
+  } else {
+    console.error('[邮件加载] 找不到email-message-id元素');
+  }
+  
+  // 打印 messageId 到控制台
+  console.log('[邮件加载] messageId:', currentEmail.messageId);
+  console.log('[邮件加载] 主题:', currentEmail.subject);
+  console.log('[邮件加载] 发件人:', currentEmail.from);
   
   // 构建邮件内容
   let emailBody = '';
@@ -434,15 +459,13 @@ const btnChangeSupplier = getElement('btn-change-supplier');
 const dropdownInquiry = getElement('dropdown-inquiry');
 const dropdownSupplier = getElement('dropdown-supplier');
 
-// 打开添加报价表单
+// 打开添加报价表单（如果按钮存在）
 if (btnAddQuotation) {
   btnAddQuotation.addEventListener('click', () => {
     console.log('添加报价按钮被点击');
     // 使用右侧侧边栏而不是弹窗
     showAddQuotationSidebar();
   });
-} else {
-  console.error('btnAddQuotation 元素未找到');
 }
 
 // 关闭表单
