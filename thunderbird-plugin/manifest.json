@@ -12,6 +12,7 @@
   "permissions": [
     "messagesRead",
     "accountsRead",
+    "compose",
     "tabs",
     "storage"
   ],
@@ -61,5 +62,6 @@
     "32": "icons/icon-v2-32.png",
     "48": "icons/icon-v2-80.png",
     "128": "icons/icon-v2-80.png"
-  }
+  },
+  "options_page": "options.html"
 }

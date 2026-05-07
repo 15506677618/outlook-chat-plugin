@@ -43,6 +43,40 @@ body {
   font-weight: 600;
 }
 
+.email-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+#btn-compose-email,
+#load-email-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  font-size: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#btn-compose-email:hover,
+#load-email-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+#load-email-btn:hover {
+  transform: rotate(90deg);
+}
+
+#btn-compose-email:hover {
+  transform: scale(1.1);
+}
+
 #load-email-btn {
   background: rgba(255, 255, 255, 0.2);
   border: none;
@@ -153,11 +187,64 @@ body {
   font-weight: 600;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .status {
   font-size: 12px;
   background: rgba(255, 255, 255, 0.2);
   padding: 4px 12px;
   border-radius: 12px;
+}
+
+.btn-settings {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  font-size: 18px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-settings:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(30deg);
+}
+
+.user-id-display {
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 4px 10px;
+  border-radius: 12px;
+  color: white;
+  font-weight: 500;
+}
+
+/* 添加询价按钮 - 默认隐藏，邮件加载后由 JS 控制显示 */
+#btn-add-inquiry {
+  /* display 由 JS 控制 */
+}
+
+/* 设置弹窗样式 */
+.settings-section {
+  margin-bottom: 20px;
+}
+
+.settings-section h4 {
+  font-size: 14px;
+  color: #667eea;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eee;
 }
 
 .messages {
@@ -276,17 +363,14 @@ body {
   transform: translateY(0);
 }
 
-.typing {
+.typing-indicator {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: #f0f0f0;
-  border-radius: 16px;
-  width: fit-content;
+  gap: 6px;
+  padding: 4px 0;
 }
 
-.typing span {
+.typing-indicator span {
   width: 8px;
   height: 8px;
   background: #999;
@@ -294,8 +378,8 @@ body {
   animation: bounce 1.4s infinite ease-in-out;
 }
 
-.typing span:nth-child(1) { animation-delay: -0.32s; }
-.typing span:nth-child(2) { animation-delay: -0.16s; }
+.typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+.typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
 
 @keyframes bounce {
   0%, 80%, 100% {

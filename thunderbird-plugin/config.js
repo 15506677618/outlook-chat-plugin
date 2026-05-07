@@ -5,7 +5,9 @@
 const DEFAULT_CONFIG = {
   API_BASE_URL: 'http://localhost:3002',
   ACCESS_PASSWORD: 'koudai123',
-  NODE_ENV: 'development'
+  NODE_ENV: 'development',
+  USER_ID: 'demo_user',
+  USER_NAME: '演示用户'
 };
 
 // 全局配置对象

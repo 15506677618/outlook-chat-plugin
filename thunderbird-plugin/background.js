@@ -10,11 +10,15 @@ const DEBUG = true;
 async function loadConfig() {
   try {
     // 尝试从 storage 读取配置（用户可手动设置）
-    const stored = await browser.storage.local.get(['apiBaseUrl', 'accessPassword', 'nodeEnv']);
+    const stored = await browser.storage.local.get([
+      'userId', 'userName', 'apiBaseUrl', 'accessPassword', 'nodeEnv'
+    ]);
     
     if (stored.apiBaseUrl) {
       log('从 storage 加载配置:', stored.nodeEnv || 'custom');
       return {
+        USER_ID: stored.userId || 'demo_user',
+        USER_NAME: stored.userName || '演示用户',
         API_BASE_URL: stored.apiBaseUrl,
         ACCESS_PASSWORD: stored.accessPassword || 'koudai123',
         NODE_ENV: stored.nodeEnv || 'production'
@@ -26,6 +30,8 @@ async function loadConfig() {
   
   // 默认生产环境配置
   return {
+    USER_ID: 'demo_user',
+    USER_NAME: '演示用户',
     API_BASE_URL: 'https://koudai.xin',
     ACCESS_PASSWORD: 'koudai123',
     NODE_ENV: 'production'
@@ -272,23 +278,67 @@ if (browser.messageDisplay && browser.messageDisplay.onMessageDisplayed) {
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   log('runtime.onMessage received:', message);
 
+  if (message.type === 'composeEmail') {
+    log('opening compose window with content:', message);
+    // 打开新建邮件窗口，支持传入主题和正文
+    const options = {};
+    if (message.subject) options.subject = message.subject;
+    if (message.body) options.body = message.body;
+    if (message.to) options.to = message.to;
+    
+    browser.compose.beginNew(options).then((tab) => {
+      log('compose window opened:', tab);
+      sendResponse({ success: true, tabId: tab.id });
+    }).catch((err) => {
+      error('failed to open compose window:', err);
+      sendResponse({ success: false, error: err.message });
+    });
+    return true;
+  }
+
   if (message.type === 'getConfig') {
     log('processing getConfig request');
     
-    // 确保配置已加载
-    if (!appConfig) {
-      appConfig = {
-        API_BASE_URL: 'https://koudai.xin',
-        ACCESS_PASSWORD: 'koudai123',
-        NODE_ENV: 'production'
-      };
-    }
+    // 使用 Promise 处理 async 配置加载
+    const handleConfig = async () => {
+      // 确保配置已加载
+      if (!appConfig) {
+        appConfig = await loadConfig();
+      }
+      
+      sendResponse({
+        type: 'config',
+        apiUrl: appConfig.API_BASE_URL + '/api/chat',
+        accessPassword: appConfig.ACCESS_PASSWORD,
+        nodeEnv: appConfig.NODE_ENV,
+        userId: appConfig.USER_ID,
+        userName: appConfig.USER_NAME
+      });
+    };
     
-    sendResponse({
-      type: 'config',
-      apiUrl: appConfig.API_BASE_URL + '/api/chat',
-      accessPassword: appConfig.ACCESS_PASSWORD,
-      nodeEnv: appConfig.NODE_ENV
+    handleConfig().catch(err => {
+      error('getConfig error:', err);
+      sendResponse({
+        type: 'config',
+        apiUrl: 'https://koudai.xin/api/chat',
+        accessPassword: 'koudai123',
+        nodeEnv: 'production',
+        userId: 'demo_user',
+        userName: '演示用户'
+      });
+    });
+    return true;
+  }
+  
+  // 处理配置更新消息
+  if (message.type === 'configUpdated') {
+    log('config updated, reloading...');
+    loadConfig().then(config => {
+      appConfig = config;
+      sendResponse({ success: true });
+    }).catch(err => {
+      error('configUpdated error:', err);
+      sendResponse({ success: false, error: err.message });
     });
     return true;
   }

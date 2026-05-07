@@ -34,6 +34,16 @@ if (typeof browser !== 'undefined' && browser.runtime) {
         ACCESS_PASSWORD = message.accessPassword;
         console.log('[Config] ACCESS_PASSWORD 已更新');
       }
+      // 更新用户信息
+      if (message.userId) {
+        currentUserId = message.userId;
+        console.log('[Config] USER_ID 已更新:', currentUserId);
+        updateUserIdDisplay();
+      }
+      if (message.userName) {
+        currentUserName = message.userName;
+        console.log('[Config] USER_NAME 已更新:', currentUserName);
+      }
       sendResponse({ success: true });
     }
     
@@ -72,6 +82,44 @@ async function loadUserInfo() {
   }
 }
 loadUserInfo();
+
+// 从 storage 加载用户配置（插件环境）
+async function loadUserConfigFromStorage() {
+  try {
+    if (typeof browser !== 'undefined' && browser.storage) {
+      const stored = await browser.storage.local.get([
+        'userId', 'userName', 'apiBaseUrl', 'accessPassword'
+      ]);
+      
+      // 如果 storage 中有配置，更新当前变量
+      if (stored.userId) {
+        currentUserId = stored.userId;
+        console.log('[Init] 从 storage 加载用户 ID:', currentUserId);
+      }
+      if (stored.userName) {
+        currentUserName = stored.userName;
+        console.log('[Init] 从 storage 加载用户名称:', currentUserName);
+      }
+      if (stored.apiBaseUrl) {
+        API_URL = stored.apiBaseUrl.replace(/\/$/, '') + '/api/chat';
+        MCP_API_URL = stored.apiBaseUrl.replace(/\/$/, '') + '/api/mcp';
+        console.log('[Init] 从 storage 加载 API URL:', API_URL);
+      }
+      if (stored.accessPassword) {
+        ACCESS_PASSWORD = stored.accessPassword;
+        console.log('[Init] 从 storage 加载访问密码');
+      }
+      
+      // 更新页面显示
+      updateUserIdDisplay();
+    }
+  } catch (error) {
+    console.error('[Init] 从 storage 加载配置失败:', error);
+  }
+}
+
+// 页面加载时从 storage 读取配置
+loadUserConfigFromStorage();
 
 // 监听来自父窗口的邮件数据（作为备用方式）
 window.addEventListener('message', (event) => {
@@ -177,6 +225,81 @@ function addMessage(content, isUser = false) {
 
   messageDiv.appendChild(avatar);
   messageDiv.appendChild(contentDiv);
+  
+  // 为 AI 消息添加操作按钮
+  // 当内容包含邮件格式（主题、正文）或 [确认发送] 标记时显示发送按钮
+  // 排除系统消息（如"已加载邮件"）
+  if (!isUser && !content.includes('已加载邮件')) {
+    // 检查是否包含邮件格式（支持 **主题：** 或 主题： 或 Subject: 格式）
+    const hasSubject = content.match(/\*\*主题\*\*[：:]\s*([^\n]+)/i) || 
+                       content.match(/主题[：:]\s*([^\n]+)/i) || 
+                       content.match(/Subject[：:]\s*([^\n]+)/i);
+    const hasBody = content.match(/\*\*正文\*\*[：:]\s*([\s\S]+?)(?=\n\n|$)/i) || 
+                    content.match(/正文[：:]\s*([\s\S]+?)(?=\n\n|$)/i) || 
+                    content.match(/Body[：:]\s*([\s\S]+?)(?=\n\n|$)/i) ||
+                    content.match(/Dear\s+\w+/i); // 检测到邮件开头格式
+    const hasConfirmTag = content.includes('[确认发送]');
+    
+    // 只要有邮件格式或确认标记，就显示发送按钮
+    if (hasConfirmTag || hasSubject || hasBody) {
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'message-actions';
+      actionsDiv.style.marginTop = '12px';
+      actionsDiv.style.display = 'flex';
+      actionsDiv.style.gap = '8px';
+      
+      // [确认发送] 按钮
+      const composeBtn = document.createElement('button');
+      composeBtn.className = 'btn-message-action';
+      composeBtn.innerHTML = '✉️ [确认发送]';
+      composeBtn.style.cssText = 'padding: 6px 16px; font-size: 13px; background: linear-gradient(135deg, #4caf50 0%, #45a049 100%); color: white; border: none; border-radius: 16px; cursor: pointer; font-weight: 500;';
+      composeBtn.onclick = () => {
+        // 提取主题和正文（移除[确认发送]标记）
+        let cleanContent = content.replace(/\[确认发送\]/g, '').trim();
+        
+        // 提取主题（支持多种格式）
+        const subjectMatch = cleanContent.match(/\*\*主题\*\*[：:]\s*([^\n]+)/i) || 
+                             cleanContent.match(/主题[：:]\s*([^\n]+)/i) || 
+                             cleanContent.match(/Subject[：:]\s*([^\n]+)/i);
+        
+        // 提取正文（支持多种格式）
+        let bodyText = '';
+        const bodyMatch = cleanContent.match(/\*\*正文\*\*[：:]\s*([\s\S]+?)(?=\n\n|$)/i) || 
+                          cleanContent.match(/正文[：:]\s*([\s\S]+?)(?=\n\n|$)/i) || 
+                          cleanContent.match(/Body[：:]\s*([\s\S]+?)(?=\n\n|$)/i);
+        
+        if (bodyMatch) {
+          bodyText = bodyMatch[1].trim();
+        } else {
+          // 如果没有明确的正文标记，尝试从 Dear 开头提取
+          const dearMatch = cleanContent.match(/(Dear\s+[\s\S]+)/i);
+          if (dearMatch) {
+            bodyText = dearMatch[1].trim();
+          }
+        }
+        
+        const subject = subjectMatch ? subjectMatch[1].trim() : 'Re: ' + (currentEmail?.subject || '');
+        
+        // 移除 markdown 格式和 HTML 标签
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = cleanContent;
+        let plainText = tempDiv.textContent || tempDiv.innerText || cleanContent;
+        // 移除 markdown 加粗标记
+        plainText = plainText.replace(/\*\*/g, '');
+        
+        composeEmailWithContent(subject, bodyText || plainText, currentEmail?.from);
+        
+        // 禁用按钮防止重复点击
+        composeBtn.disabled = true;
+        composeBtn.innerHTML = '✓ 已打开';
+        composeBtn.style.background = '#999';
+      };
+      
+      actionsDiv.appendChild(composeBtn);
+      contentDiv.appendChild(actionsDiv);
+    }
+  }
+  
   messagesContainer.appendChild(messageDiv);
 
   // 滚动到底部
@@ -254,6 +377,13 @@ async function sendMessage() {
   addTypingIndicator();
 
   try {
+    console.log('[Chat] Sending request to:', API_URL);
+    console.log('[Chat] Request body:', JSON.stringify({
+      messages: conversationHistory.slice(-3), // 只打印最后3条避免太长
+      userMessage: message,
+      stream: false
+    }));
+    
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -267,6 +397,9 @@ async function sendMessage() {
         stream: false  // 明确指定非流式响应
       })
     });
+    
+    console.log('[Chat] Response status:', response.status);
+    console.log('[Chat] Response headers:', Object.fromEntries(response.headers.entries()));
 
     removeTypingIndicator();
 
@@ -347,6 +480,245 @@ userInput.addEventListener('keydown', handleKeyPress);
 userInput.addEventListener('input', autoResize);
 sendBtn.addEventListener('click', sendMessage);
 
+// ============================
+// 更新用户 ID 显示
+// ============================
+function updateUserIdDisplay() {
+  const userIdDisplay = document.getElementById('user-id-display');
+  if (userIdDisplay) {
+    userIdDisplay.textContent = '👤 ' + currentUserId;
+    userIdDisplay.title = '当前用户: ' + currentUserName + ' (' + currentUserId + ')';
+  }
+}
+
+// ============================
+// 设置功能
+// ============================
+const settingsModal = document.getElementById('settings-modal');
+const btnSettings = document.getElementById('btn-settings');
+const settingsClose = document.getElementById('settings-close');
+const settingsCancel = document.getElementById('settings-cancel');
+const settingsSave = document.getElementById('settings-save');
+
+// 打开设置弹窗
+if (btnSettings) {
+  btnSettings.addEventListener('click', async () => {
+    // 加载当前配置
+    await loadSettingsFromStorage();
+    settingsModal.style.display = 'flex';
+  });
+}
+
+// 关闭设置弹窗
+function closeSettingsModal() {
+  settingsModal.style.display = 'none';
+}
+
+if (settingsClose) settingsClose.addEventListener('click', closeSettingsModal);
+if (settingsCancel) settingsCancel.addEventListener('click', closeSettingsModal);
+
+// 点击弹窗外部关闭
+settingsModal?.addEventListener('click', (e) => {
+  if (e.target === settingsModal) closeSettingsModal();
+});
+
+// 从 storage 加载设置
+async function loadSettingsFromStorage() {
+  try {
+    // 如果是插件环境，从 browser.storage 读取
+    if (typeof browser !== 'undefined' && browser.storage) {
+      const stored = await browser.storage.local.get([
+        'userId', 'userName', 'apiBaseUrl', 'accessPassword'
+      ]);
+      
+      document.getElementById('setting-user-id').value = stored.userId || currentUserId;
+      document.getElementById('setting-user-name').value = stored.userName || currentUserName;
+      document.getElementById('setting-api-url').value = stored.apiBaseUrl || API_URL.replace('/api/chat', '');
+      document.getElementById('setting-password').value = stored.accessPassword || ACCESS_PASSWORD;
+    } else {
+      // 本地环境使用当前变量值
+      document.getElementById('setting-user-id').value = currentUserId;
+      document.getElementById('setting-user-name').value = currentUserName;
+      document.getElementById('setting-api-url').value = API_URL.replace('/api/chat', '');
+      document.getElementById('setting-password').value = ACCESS_PASSWORD;
+    }
+  } catch (error) {
+    console.error('[Settings] 加载配置失败:', error);
+  }
+}
+
+// 保存设置
+if (settingsSave) {
+  settingsSave.addEventListener('click', async () => {
+    const userId = document.getElementById('setting-user-id').value.trim();
+    const userName = document.getElementById('setting-user-name').value.trim();
+    const apiBaseUrl = document.getElementById('setting-api-url').value.trim();
+    const accessPassword = document.getElementById('setting-password').value;
+    
+    // 验证
+    if (!userId || !userName || !apiBaseUrl) {
+      alert('请填写所有必填项');
+      return;
+    }
+    
+    try {
+      // 更新当前变量
+      currentUserId = userId;
+      currentUserName = userName;
+      API_URL = apiBaseUrl.replace(/\/$/, '') + '/api/chat';
+      ACCESS_PASSWORD = accessPassword;
+      
+      // 更新页面显示
+      updateUserIdDisplay();
+      
+      // 保存到 storage
+      if (typeof browser !== 'undefined' && browser.storage) {
+        await browser.storage.local.set({
+          userId,
+          userName,
+          apiBaseUrl: apiBaseUrl.replace(/\/$/, ''),
+          accessPassword
+        });
+        
+        // 通知 background.js 配置已更新
+        await browser.runtime.sendMessage({
+          type: 'configUpdated',
+          config: { userId, userName, apiBaseUrl, accessPassword }
+        });
+      }
+      
+      console.log('[Settings] 配置已保存:', { userId, userName, apiBaseUrl });
+      alert('设置已保存！');
+      closeSettingsModal();
+      
+    } catch (error) {
+      console.error('[Settings] 保存配置失败:', error);
+      alert('保存失败: ' + error.message);
+    }
+  });
+}
+
+// ============================
+// 调试工具 - 在控制台查看配置
+// ============================
+window.showConfig = function() {
+  console.log('%c[AI 邮件助手] 当前配置', 'color: #667eea; font-size: 14px; font-weight: bold;');
+  console.table({
+    '用户 ID': currentUserId,
+    '用户名称': currentUserName,
+    'API URL': API_URL,
+    'MCP API URL': MCP_API_URL,
+    '访问密码': ACCESS_PASSWORD ? '已设置 (' + ACCESS_PASSWORD.substring(0, 3) + '...)' : '未设置'
+  });
+  return { currentUserId, currentUserName, API_URL, MCP_API_URL };
+};
+
+// 从 storage 加载并显示配置
+window.loadConfig = async function() {
+  try {
+    if (typeof browser !== 'undefined' && browser.storage) {
+      const stored = await browser.storage.local.get([
+        'userId', 'userName', 'apiBaseUrl', 'accessPassword'
+      ]);
+      console.log('%c[AI 邮件助手] Storage 中的配置', 'color: #4caf50; font-size: 14px; font-weight: bold;');
+      console.table({
+        '用户 ID': stored.userId || '未设置',
+        '用户名称': stored.userName || '未设置',
+        'API 基础地址': stored.apiBaseUrl || '未设置',
+        '访问密码': stored.accessPassword ? '已设置' : '未设置'
+      });
+      return stored;
+    } else {
+      console.log('非插件环境，无法读取 storage');
+      return null;
+    }
+  } catch (error) {
+    console.error('读取配置失败:', error);
+    return null;
+  }
+};
+
+// 页面加载完成后自动显示配置
+setTimeout(async () => {
+  console.log('%c[AI 邮件助手] 调试命令可用：', 'color: #667eea; font-size: 12px;');
+  console.log('  showConfig() - 查看当前内存中的配置');
+  console.log('  loadConfig() - 从 storage 读取配置');
+  
+  // 确保"添加询价"按钮初始状态正确（如果没有邮件则隐藏）
+  const btnAddInquiryInit = document.getElementById('btn-add-inquiry');
+  if (btnAddInquiryInit && !currentEmail) {
+    btnAddInquiryInit.style.display = 'none';
+    btnAddInquiryInit.style.setProperty('display', 'none', 'important');
+    console.log('[Init] 无邮件，隐藏添加询价按钮');
+  } else if (btnAddInquiryInit && currentEmail) {
+    console.log('[Init] 有邮件，显示添加询价按钮');
+  }
+  
+  // 更新页面上的用户 ID 显示
+  updateUserIdDisplay();
+  
+  // 自动显示当前配置
+  console.log('%c[AI 邮件助手] 当前配置 (自动显示)', 'color: #667eea; font-size: 14px; font-weight: bold;');
+  console.table({
+    '用户 ID': currentUserId,
+    '用户名称': currentUserName,
+    'API URL': API_URL,
+    '访问密码': ACCESS_PASSWORD ? '已设置' : '未设置'
+  });
+  
+  // 如果是插件环境，也显示 storage 中的配置
+  if (typeof browser !== 'undefined' && browser.storage) {
+    try {
+      const stored = await browser.storage.local.get([
+        'userId', 'userName', 'apiBaseUrl', 'accessPassword'
+      ]);
+      console.log('%c[AI 邮件助手] Storage 配置', 'color: #4caf50; font-size: 14px; font-weight: bold;');
+      console.table({
+        '用户 ID': stored.userId || '未设置(使用默认值: ' + currentUserId + ')',
+        '用户名称': stored.userName || '未设置(使用默认值: ' + currentUserName + ')',
+        'API 基础地址': stored.apiBaseUrl || '未设置(使用默认值)',
+        '访问密码': stored.accessPassword ? '已设置' : '未设置(使用默认值)'
+      });
+    } catch (e) {
+      console.error('读取 storage 失败:', e);
+    }
+  }
+}, 1000);
+
+// ========== 发送询价邮件按钮 ==========
+const btnSendInquiryEmail = document.getElementById('btn-send-inquiry-email');
+if (btnSendInquiryEmail) {
+  btnSendInquiryEmail.addEventListener('click', () => {
+    // 在对话框中填入询价提示词
+    const userInput = document.getElementById('user-input');
+    if (userInput) {
+      const promptText = `请帮我生成一封询价邮件，包含以下信息：
+
+**货物信息：**
+- 起运港：
+- 目的港：
+- 货物品名：
+- 体积/重量：
+- 箱型/数量：
+- 预计出货时间：
+- 特殊要求：
+
+**联系方式：**
+- 联系人：${currentUserName || '请填写'}
+- 用户ID：${currentUserId || '请填写'}
+
+请生成一封正式的询价邮件。`;
+      
+      userInput.value = promptText;
+      userInput.focus();
+      // 自动调整文本框高度
+      userInput.style.height = 'auto';
+      userInput.style.height = Math.min(userInput.scrollHeight, 200) + 'px';
+      console.log('[发送询价邮件] 已填入提示词到对话框');
+    }
+  });
+}
+
 // 模拟邮件数据（本地调试用）
 const mockEmails = [
   {
@@ -393,6 +765,47 @@ const mockEmails = [
 李四`
   }
 ];
+
+// 新建邮件按钮
+const btnComposeEmail = document.getElementById('btn-compose-email');
+if (btnComposeEmail) {
+  btnComposeEmail.addEventListener('click', () => {
+    console.log('打开新建邮件窗口');
+    // 向 background.js 发送消息打开新建邮件窗口
+    if (typeof browser !== 'undefined' && browser.runtime) {
+      browser.runtime.sendMessage({ type: 'composeEmail' });
+    }
+  });
+}
+
+// 打开新建邮件窗口并填充内容
+function composeEmailWithContent(subject, body, to) {
+  console.log('打开新建邮件窗口并填充内容:', { subject, body, to });
+  if (typeof browser !== 'undefined' && browser.runtime) {
+    browser.runtime.sendMessage({
+      type: 'composeEmail',
+      subject: subject,
+      body: body,
+      to: to
+    }).then((response) => {
+      console.log('composeEmail 响应:', response);
+      if (response.success) {
+        addMessage('✅ 已打开新建邮件窗口并填入内容', false);
+      } else {
+        addMessage('❌ 打开邮件窗口失败: ' + (response.error || '未知错误'), false);
+      }
+    }).catch((err) => {
+      console.error('composeEmail 错误:', err);
+      addMessage('❌ 打开邮件窗口失败: ' + err.message, false);
+    });
+  } else {
+    console.error('browser.runtime 不可用');
+    addMessage('❌ 插件环境不可用', false);
+  }
+}
+
+// 暴露到全局，供 AI 调用
+window.composeEmailWithContent = composeEmailWithContent;
 
 // 加载邮件按钮（仅在启用模拟邮件时绑定事件）
 const loadEmailBtn = document.getElementById('load-email-btn');

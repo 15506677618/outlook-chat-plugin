@@ -10,6 +10,27 @@ if (!globalThis.fetch) {
   globalThis.fetch = module.default;
 }
 
+// 带超时的 fetch 包装函数
+async function fetchWithTimeout(url, options = {}, timeout = 30000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('请求超时，请稍后重试');
+    }
+    throw error;
+  }
+}
+
 // 加载环境变量
 dotenv.config();
 
@@ -257,8 +278,8 @@ app.post('/api/chat', async (req, res) => {
 
 使用 HTML 标签让回复更美观：<b>加粗</b>、<br>换行、<p>段落、<ul>/<li>列表等。`;
 
-    // 调用 AI
-    const response = await fetch(SILICONFLOW_API_URL, {
+    // 调用 AI（带 25 秒超时）
+    const response = await fetchWithTimeout(SILICONFLOW_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -271,7 +292,7 @@ app.post('/api/chat', async (req, res) => {
           ...messages
         ]
       })
-    });
+    }, 25000);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
