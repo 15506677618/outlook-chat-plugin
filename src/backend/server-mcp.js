@@ -78,7 +78,9 @@ const SILICONFLOW_MODEL = 'Pro/zai-org/GLM-4.7';
 const MCP_SERVER_URL = process.env.MCP_SERVER_URL || 'http://localhost:3001';
 
 app.use(cors());
-app.use(express.json());
+// 增加 body 大小限制以支持图片 base64 数据（最大 50MB）
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(join(__dirname, '..', '..', 'dist')));
 
 // MCP 客户端函数
