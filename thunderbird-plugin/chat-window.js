@@ -14,6 +14,327 @@ let currentEmail = null;
 let currentUserId = 'demo_user';
 let currentUserName = '演示用户';
 
+// ========== HTML 清理函数（内联实现，不依赖外部库） ==========
+
+/**
+ * 简化的 HTML 清理函数
+ * @param {string} html - 原始 HTML
+ * @returns {string} 清理后的 HTML
+ */
+function sanitizeHtml(html) {
+  if (!html) return '';
+  
+  // 创建临时 div
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+  
+  // 移除所有 script 标签
+  const scripts = temp.querySelectorAll('script');
+  scripts.forEach(s => s.remove());
+  
+  // 移除所有事件处理器属性
+  const allElements = temp.querySelectorAll('*');
+  allElements.forEach(el => {
+    const attrs = el.attributes;
+    for (let i = attrs.length - 1; i >= 0; i--) {
+      const attrName = attrs[i].name;
+      if (attrName.startsWith('on') || attrName === 'javascript:') {
+        el.removeAttribute(attrName);
+      }
+    }
+  });
+  
+  return temp.innerHTML;
+}
+
+// 模拟 DOMPurify 接口（如果全局不存在）
+if (typeof window.DOMPurify === 'undefined') {
+  window.DOMPurify = {
+    sanitize: function(html, config) {
+      return sanitizeHtml(html);
+    }
+  };
+}
+
+// ========== OCR 函数（调用后端 API） ==========
+
+/**
+ * 调用后端 API 识别图片中的文字
+ * @param {string} imageBase64 - 图片的 base64 数据
+ * @returns {Promise<string>} 识别的文字
+ */
+async function recognizeText(imageBase64) {
+  try {
+    console.log('[OCR] 调用后端 API 识别图片...');
+    
+    const response = await fetch(`${API_URL.replace('/api/chat', '')}/api/ocr`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        imageBase64: imageBase64
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`OCR API 错误: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('[OCR] 识别完成:', data.text.substring(0, 100) + '...');
+      return data.text;
+    } else {
+      throw new Error(data.error || '识别失败');
+    }
+  } catch (error) {
+    console.error('[OCR] 识别失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 批量识别邮件中的图片
+ * @param {Array} attachments - 附件列表
+ * @returns {Promise<Array>} OCR 结果列表
+ */
+async function performOCR(attachments) {
+  if (!attachments || attachments.length === 0) {
+    return [];
+  }
+  
+  const images = attachments.filter(att => att.type === 'image' && att.content);
+  if (images.length === 0) {
+    return [];
+  }
+  
+  console.log(`[OCR] 开始识别 ${images.length} 张图片...`);
+  
+  const results = [];
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+    try {
+      const text = await recognizeText(img.content);
+      results.push({
+        index: i,
+        name: img.name,
+        text: text,
+        success: !!text
+      });
+    } catch (err) {
+      console.error(`[OCR] 图片 ${i} 识别失败:`, err);
+      results.push({
+        index: i,
+        name: img.name,
+        text: null,
+        success: false,
+        error: err.message
+      });
+    }
+  }
+  
+  return results;
+}
+
+// ========== 邮件内容渲染函数 ==========
+
+/**
+ * 安全渲染邮件内容（支持 HTML 和纯文本）
+ * @param {Object} emailData - 邮件数据对象
+ * @param {string} emailData.html - HTML 内容
+ * @param {string} emailData.plain - 纯文本内容
+ * @param {Array} emailData.attachments - 附件列表
+ * @param {boolean} emailData.hasImages - 是否包含图片
+ */
+function renderEmailBody(emailData) {
+  const emailBodyEl = document.getElementById('email-body');
+  if (!emailBodyEl) return;
+
+  console.log('[renderEmailBody] 开始渲染邮件:', {
+    hasHtml: !!emailData.html,
+    hasPlain: !!emailData.plain,
+    hasImages: emailData.hasImages,
+    attachmentsCount: emailData.attachments?.length || 0,
+    imageAttachments: emailData.attachments?.filter(att => att.type === 'image').map(att => ({
+      name: att.name,
+      contentType: att.contentType,
+      hasContent: !!att.content,
+      contentLength: att.content?.length || 0
+    }))
+  });
+
+  // 如果有 HTML 内容，优先渲染 HTML
+  if (emailData.html) {
+    // 处理内嵌图片（将 cid: 引用替换为 base64）
+    let processedHtml = processInlineImages(emailData.html, emailData.attachments);
+    
+    console.log('[renderEmailBody] HTML 处理完成，长度:', processedHtml.length);
+    console.log('[renderEmailBody] DOMPurify 状态:', typeof DOMPurify);
+    
+    // 使用 DOMPurify 清理 HTML（防止 XSS）
+    let cleanHtml;
+    if (typeof DOMPurify !== 'undefined') {
+      cleanHtml = DOMPurify.sanitize(processedHtml, {
+        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'b', 'i', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+          'ul', 'ol', 'li', 'a', 'img', 'table', 'thead', 'tbody', 'tr', 'td', 'th',
+          'div', 'span', 'blockquote', 'pre', 'code', 'hr', 'sub', 'sup'],
+        ALLOWED_ATTR: ['href', 'title', 'alt', 'src', 'width', 'height', 'style', 'colspan', 'rowspan', 'target'],
+        ALLOW_DATA_ATTR: false,
+        SANITIZE_DOM: true
+      });
+    } else {
+      // DOMPurify 未加载，直接使用处理后的 HTML（仅用于测试）
+      console.warn('[renderEmailBody] DOMPurify 未加载，直接渲染 HTML');
+      cleanHtml = processedHtml;
+    }
+    
+    // 创建安全的 iframe 渲染 HTML
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'width: 100%; height: 100%; border: none; overflow: auto;';
+    iframe.sandbox = 'allow-same-origin';
+    
+    emailBodyEl.innerHTML = '';
+    emailBodyEl.appendChild(iframe);
+    
+    // 写入清理后的 HTML
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #333;
+            padding: 16px;
+            margin: 0;
+            word-wrap: break-word;
+          }
+          img { max-width: 100%; height: auto; }
+          a { color: #667eea; }
+          table { border-collapse: collapse; width: 100%; }
+          td, th { border: 1px solid #ddd; padding: 8px; }
+          blockquote { border-left: 3px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
+          pre { background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto; }
+        </style>
+      </head>
+      <body>${cleanHtml}</body>
+      </html>
+    `);
+    iframeDoc.close();
+    
+    // 调整 iframe 高度适应内容
+    setTimeout(() => {
+      iframe.style.height = iframeDoc.body.scrollHeight + 20 + 'px';
+    }, 100);
+    
+  } else if (emailData.html && typeof DOMPurify === 'undefined') {
+    // DOMPurify 未加载，从 HTML 提取纯文本显示
+    console.warn('[renderEmailBody] DOMPurify not available, falling back to plain text');
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = emailData.html;
+    const plainText = tempDiv.textContent || tempDiv.innerText || emailData.html;
+    emailBodyEl.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit; padding: 16px; margin: 0;">${escapeHtml(plainText)}</pre>`;
+    
+  } else if (emailData.plain) {
+    // 纯文本渲染
+    emailBodyEl.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit; padding: 16px; margin: 0;">${escapeHtml(emailData.plain)}</pre>`;
+  } else {
+    emailBodyEl.innerHTML = '<p style="padding: 16px; color: #999;">（无法获取邮件内容）</p>';
+  }
+}
+
+/**
+ * 处理内嵌图片，将 cid: 引用替换为 base64，处理外部图片 URL
+ */
+function processInlineImages(html, attachments) {
+  if (!html) return html;
+  
+  let processedHtml = html;
+  
+  // 1. 处理 cid: 引用（内嵌图片）
+  if (attachments && attachments.length > 0) {
+    const cidRegex = /cid:([^"'\s]+)/gi;
+    const matches = html.match(cidRegex) || [];
+    
+    matches.forEach((match) => {
+      const cid = match.replace('cid:', '');
+      // 查找对应的附件
+      const imageAtt = attachments.find(att => 
+        att.type === 'image' && 
+        (att.name === cid || att.contentId === cid || cid.includes(att.name) || att.name?.includes(cid))
+      );
+      
+      if (imageAtt && imageAtt.content) {
+        const base64Url = `data:${imageAtt.contentType || 'image/jpeg'};base64,${imageAtt.content}`;
+        processedHtml = processedHtml.replace(new RegExp(match.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), base64Url);
+      }
+    });
+  }
+  
+  // 2. 处理外部图片 URL - 添加占位符提示
+  // 查找所有 src="http..." 的图片
+  const externalImgRegex = /<img[^>]+src="(https?:\/\/[^"]+)"[^>]*>/gi;
+  processedHtml = processedHtml.replace(externalImgRegex, (match, url) => {
+    // 保留原标签，但添加提示
+    return match.replace('>', ' data-external="true" title="外部图片：' + url + '">');
+  });
+  
+  return processedHtml;
+}
+
+/**
+ * HTML 转义函数
+ */
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+/**
+ * 提取邮件内容给 AI 分析（去除 HTML 标签）
+ */
+function extractContentForAI(emailData) {
+  // 使用纯文本版本（优先）
+  let textContent = emailData.plain || '';
+
+  // 如果没有纯文本，从 HTML 提取
+  if (!textContent && emailData.html) {
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = emailData.html;
+    textContent = tempDiv.textContent || tempDiv.innerText || '';
+  }
+
+  // 添加图片 OCR 结果
+  if (emailData.hasImages && emailData.imageOcrResults && emailData.imageOcrResults.length > 0) {
+    textContent += '\n\n[图片内容识别结果]\n';
+    emailData.imageOcrResults.forEach((result, index) => {
+      if (result.success && result.text) {
+        textContent += `\n--- 图片 ${index + 1}${result.name ? ` (${result.name})` : ''} ---\n${result.text}\n`;
+      }
+    });
+  } else if (emailData.hasImages) {
+    const imageCount = emailData.attachments?.filter(att => att.type === 'image').length || 0;
+    textContent += `\n\n[邮件包含 ${imageCount} 张图片，正在识别...]`;
+  }
+
+  // 添加附件信息
+  const attachmentCount = emailData.attachments?.filter(att => att.type === 'attachment').length || 0;
+  if (attachmentCount > 0) {
+    textContent += `\n[邮件包含 ${attachmentCount} 个附件]`;
+  }
+
+  return textContent.trim();
+}
+
 // 监听来自 background.js 的配置消息（插件环境）
 if (typeof browser !== 'undefined' && browser.runtime) {
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -184,28 +505,81 @@ function handleEmailContent(emailData) {
   console.log('[邮件加载] 主题:', currentEmail.subject);
   console.log('[邮件加载] 发件人:', currentEmail.from);
   
-  // 构建邮件内容
-  let emailBody = '';
+  // 使用新的 renderEmailBody 函数渲染邮件内容
   if (currentEmail.conversation && currentEmail.conversation.length > 0) {
-    currentEmail.conversation.forEach((msg) => {
-      const prefix = msg.isReply ? '【回复】' : '【原始】';
-      emailBody += `${prefix} ${msg.from} (${msg.date}):\n${msg.body}\n\n${'='.repeat(50)}\n\n`;
+    // 有会话数据，渲染第一封邮件
+    const firstMsg = currentEmail.conversation[0];
+    renderEmailBody({
+      html: firstMsg.html,
+      plain: firstMsg.body,
+      attachments: firstMsg.attachments,
+      hasImages: firstMsg.hasImages
     });
-    // 同时设置 currentEmail.body 为第一个邮件的内容（用于询价提取）
+    
+    // 同时设置 currentEmail.body 为第一个邮件的纯文本内容（用于询价提取）
     if (!currentEmail.body) {
-      currentEmail.body = currentEmail.conversation[0].body || '';
+      currentEmail.body = firstMsg.body || '';
+    }
+    
+    // 保存完整的邮件数据用于 AI 分析
+    currentEmail.emailData = {
+      html: firstMsg.html,
+      plain: firstMsg.body,
+      attachments: firstMsg.attachments,
+      hasImages: firstMsg.hasImages
+    };
+    
+    // 如果有图片，自动进行 OCR 识别
+    if (firstMsg.hasImages && firstMsg.attachments) {
+      console.log('[邮件加载] 检测到图片，开始 OCR 识别...');
+      performOCR(firstMsg.attachments).then(ocrResults => {
+        currentEmail.emailData.imageOcrResults = ocrResults;
+        console.log('[邮件加载] OCR 完成:', ocrResults);
+        
+        // 更新欢迎消息，显示 OCR 结果摘要
+        if (ocrResults.some(r => r.success)) {
+          const successCount = ocrResults.filter(r => r.success).length;
+          console.log(`[邮件加载] ${successCount}/${ocrResults.length} 张图片识别成功`);
+        }
+      }).catch(err => {
+        console.error('[邮件加载] OCR 失败:', err);
+      });
     }
   } else {
-    emailBody = currentEmail.body || '（无法获取邮件内容）';
-  }
-  if (emailBodyEl) {
-    emailBodyEl.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit;">${emailBody}</pre>`;
+    // 没有会话数据，使用旧的 body 字段
+    renderEmailBody({
+      html: currentEmail.html,
+      plain: currentEmail.body,
+      attachments: currentEmail.attachments,
+      hasImages: currentEmail.hasImages
+    });
+    
+    currentEmail.emailData = {
+      html: currentEmail.html,
+      plain: currentEmail.body,
+      attachments: currentEmail.attachments,
+      hasImages: currentEmail.hasImages
+    };
+    
+    // 如果有图片，自动进行 OCR 识别
+    if (currentEmail.hasImages && currentEmail.attachments) {
+      console.log('[邮件加载] 检测到图片，开始 OCR 识别...');
+      performOCR(currentEmail.attachments).then(ocrResults => {
+        currentEmail.emailData.imageOcrResults = ocrResults;
+        console.log('[邮件加载] OCR 完成:', ocrResults);
+      }).catch(err => {
+        console.error('[邮件加载] OCR 失败:', err);
+      });
+    }
   }
   
   // 添加欢迎消息
   let welcomeMsg = `📧 **已加载邮件**\n\n**主题：** ${currentEmail.subject}\n**发件人：** ${currentEmail.from}\n**日期：** ${currentEmail.date}`;
   if (currentEmail.conversation && currentEmail.conversation.length > 1) {
     welcomeMsg += `\n\n📨 **此邮件会话共 ${currentEmail.conversation.length} 封邮件**`;
+  }
+  if (currentEmail.hasImages || currentEmail.emailData?.hasImages) {
+    welcomeMsg += `\n\n🖼️ **邮件包含图片，正在识别内容...**`;
   }
   welcomeMsg += `\n\n您可以询问我关于这封邮件的任何问题！`;
   addMessage(welcomeMsg, false);

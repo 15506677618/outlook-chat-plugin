@@ -30,12 +30,14 @@ body {
 }
 
 .email-header {
-  padding: 16px 20px;
+  padding: 0 20px;
+  height: 60px;
   background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
   color: white;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  box-sizing: border-box;
 }
 
 .email-header h2 {
@@ -135,12 +137,13 @@ body {
 
 .email-body {
   background: #fff;
-  padding: 12px;
   border-radius: 8px;
   border: 1px solid #e0e0e0;
   line-height: 1.4;
   color: #333;
   font-size: 14px;
+  overflow: auto;
+  max-height: 100%;
 }
 
 .email-body pre {
@@ -154,6 +157,52 @@ body {
   margin-bottom: 8px;
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+/* HTML 邮件渲染样式 */
+.email-body iframe {
+  display: block;
+  width: 100%;
+  min-height: 200px;
+  border: none;
+  background: #fff;
+}
+
+/* 邮件中的图片样式 */
+.email-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 8px 0;
+}
+
+/* 邮件附件提示 */
+.email-attachments {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 3px solid #667eea;
+}
+
+.email-attachments-title {
+  font-weight: 600;
+  color: #667eea;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.email-attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  color: #555;
+}
+
+.email-attachment-item::before {
+  content: '📎';
 }
 
 .placeholder-text {
@@ -174,12 +223,14 @@ body {
 }
 
 .chat-header {
-  padding: 16px 20px;
+  padding: 0 20px;
+  height: 60px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  box-sizing: border-box;
 }
 
 .chat-header h1 {

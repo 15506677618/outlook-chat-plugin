@@ -732,6 +732,128 @@ app.post('/api/mcp/get_my_quotations', requirePassword, async (req, res) => {
   }
 });
 
+// 导入 Tesseract.js
+import { createWorker } from 'tesseract.js';
+
+// OCR 图片识别接口（使用本地 Tesseract）
+app.post('/api/ocr', async (req, res) => {
+  const { imageBase64, imageUrl } = req.body;
+  
+  if (!imageBase64 && !imageUrl) {
+    return res.status(400).json({ error: '请提供图片 base64 数据或图片 URL' });
+  }
+  
+  let worker = null;
+  
+  try {
+    console.log('[OCR] 开始识别...');
+    
+    // 创建 Tesseract worker
+    worker = await createWorker('chi_sim+eng'); // 中文简体 + 英文
+    
+    let result;
+    
+    if (imageBase64) {
+      // 从 base64 识别
+      const imageData = `data:image/png;base64,${imageBase64}`;
+      result = await worker.recognize(imageData);
+    } else if (imageUrl) {
+      // 从 URL 识别
+      result = await worker.recognize(imageUrl);
+    }
+    
+    // 终止 worker
+    await worker.terminate();
+    
+    console.log('[OCR] 识别完成:', result.data.text.substring(0, 100) + '...');
+    
+    res.json({
+      success: true,
+      text: result.data.text,
+      confidence: result.data.confidence,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('OCR 错误:', error);
+    if (worker) {
+      await worker.terminate().catch(() => {});
+    }
+    res.status(500).json({
+      error: 'OCR 识别失败',
+      details: error.message
+    });
+  }
+});
+
+// 批量 OCR 接口（用于处理邮件中的多张图片）
+app.post('/api/ocr/batch', async (req, res) => {
+  const { images } = req.body;
+  
+  if (!images || !Array.isArray(images) || images.length === 0) {
+    return res.status(400).json({ error: '请提供图片数组' });
+  }
+  
+  try {
+    const results = [];
+    
+    for (let i = 0; i < images.length; i++) {
+      const image = images[i];
+      try {
+        const response = await fetch(`http://localhost:${PORT}/api/ocr`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: image.base64,
+            imageUrl: image.url
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          results.push({
+            index: i,
+            name: image.name || `图片${i + 1}`,
+            text: data.text,
+            success: true
+          });
+        } else {
+          results.push({
+            index: i,
+            name: image.name || `图片${i + 1}`,
+            text: '',
+            success: false,
+            error: '识别失败'
+          });
+        }
+      } catch (err) {
+        results.push({
+          index: i,
+          name: image.name || `图片${i + 1}`,
+          text: '',
+          success: false,
+          error: err.message
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      results: results,
+      total: images.length,
+      successful: results.filter(r => r.success).length,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('批量 OCR 错误:', error);
+    res.status(500).json({
+      error: '批量 OCR 失败',
+      details: error.message
+    });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 服务器运行在 http://localhost:${PORT}`);
   console.log(`📱 聊天页面：http://localhost:${PORT}/chat.html`);

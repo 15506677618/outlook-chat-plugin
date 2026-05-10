@@ -398,12 +398,64 @@ async function getEmailConversation(messageId) {
     }
     log('realMessageId:', realMessageId);
 
+    // 提取邮件正文和附件信息
+    const emailData = extractEmailBody(fullMessage.parts);
+    
+    // 获取内嵌图片的 base64 内容
+    if (emailData.hasImages && browser.messages.listAttachments && browser.messages.getAttachmentFile) {
+      log('开始获取附件内容...');
+      try {
+        const attachments = await browser.messages.listAttachments(message.id);
+        log('找到附件数量:', attachments.length);
+        
+        for (const attachment of attachments) {
+          // 只处理图片类型的内嵌附件
+          if (attachment.contentType?.startsWith('image/')) {
+            log('处理图片附件:', attachment.name, 'disposition:', attachment.disposition);
+            
+            try {
+              // 获取附件文件
+              const file = await browser.messages.getAttachmentFile(
+                message.id, 
+                attachment.partName
+              );
+              
+              // 读取文件为 base64
+              const base64Content = await fileToBase64(file);
+              
+              // 找到对应的附件对象并添加内容
+              const imgAtt = emailData.attachments.find(att => 
+                att.type === 'image' && 
+                (att.name === attachment.name || 
+                 att.name === attachment.partName ||
+                 attachment.name?.includes(att.name))
+              );
+              
+              if (imgAtt) {
+                imgAtt.content = base64Content;
+                imgAtt.contentId = attachment.contentId;
+                log('图片内容已加载:', attachment.name, '大小:', base64Content.length);
+              }
+            } catch (attErr) {
+              error('获取附件内容失败:', attachment.name, attErr);
+            }
+          }
+        }
+      } catch (attErr) {
+        error('获取附件列表失败:', attErr);
+      }
+    }
+    
     return [{
       id: realMessageId,
       subject: message.subject,
       from: formatAuthor(message.author),
       date: formatDate(message.date),
-      body: extractEmailBody(fullMessage.parts) || '（无内容）',
+      body: emailData.plain || '（无内容）',
+      html: emailData.html,
+      hasHtml: !!emailData.html,
+      attachments: emailData.attachments,
+      hasImages: emailData.hasImages,
       isReply: message.subject?.toLowerCase().startsWith('re:')
     }];
 
@@ -411,6 +463,22 @@ async function getEmailConversation(messageId) {
     error('getEmailConversation failed:', e);
     return [];
   }
+}
+
+// ============================
+// 文件转 base64
+// ============================
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      // 移除 data:image/xxx;base64, 前缀
+      const base64 = reader.result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 // ============================
@@ -457,24 +525,59 @@ function formatDate(date) {
   }
 }
 
-function extractEmailBody(parts) {
+function extractEmailBody(parts, preferHtml = true) {
   if (!parts) {
     warn('no parts in email');
-    return '';
+    return { html: '', plain: '', attachments: [], hasImages: false };
   }
+
+  let plainText = '';
+  let htmlContent = '';
+  let attachments = [];
 
   for (const part of parts) {
-    if (part.contentType === 'text/plain' && part.body) {
-      return part.body.trim();
+    // 提取 HTML 内容
+    if (preferHtml && part.contentType === 'text/html' && part.body) {
+      htmlContent = part.body.trim();
     }
-
-    if (part.parts) {
-      const result = extractEmailBody(part.parts);
-      if (result) return result;
+    // 提取纯文本内容
+    else if (part.contentType === 'text/plain' && part.body) {
+      plainText = part.body.trim();
+    }
+    // 处理内嵌图片
+    else if (part.contentType?.startsWith('image/')) {
+      attachments.push({
+        type: 'image',
+        contentType: part.contentType,
+        name: part.name || 'image',
+        content: part.body,  // base64
+        disposition: part.disposition || 'inline'
+      });
+    }
+    // 处理附件
+    else if (part.name && part.body) {
+      attachments.push({
+        type: 'attachment',
+        contentType: part.contentType,
+        name: part.name,
+        size: part.size || 0
+      });
+    }
+    // 递归处理子部分
+    else if (part.parts) {
+      const result = extractEmailBody(part.parts, preferHtml);
+      if (result.html && !htmlContent) htmlContent = result.html;
+      if (result.plain && !plainText) plainText = result.plain;
+      attachments.push(...result.attachments);
     }
   }
 
-  return '';
+  return {
+    html: htmlContent,
+    plain: plainText,
+    attachments: attachments,
+    hasImages: attachments.some(att => att.type === 'image' && att.disposition === 'inline')
+  };
 }
 
 log('background script initialized');
