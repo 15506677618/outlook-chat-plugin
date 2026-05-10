@@ -784,10 +784,11 @@ app.post('/api/ocr', async (req, res) => {
         // 使用 ImageMagick 进行预处理：
         // - 提高分辨率到 300 DPI
         // - 转换为灰度
-        // - 自适应阈值处理（提高对比度）
+        // - 对比度增强
         // - 去噪
+        // - 二值化处理（提高文字清晰度）
         await execAsync(
-          `convert "${tempFile}" -set units PixelsPerInch -density 300 -colorspace Gray -adaptive-threshold 10x10+5% -despeckle "${processedFile}"`
+          `convert "${tempFile}" -set units PixelsPerInch -density 300 -colorspace Gray -brightness-contrast 0x30 -despeckle -threshold 50% "${processedFile}"`
         );
         
         console.log('[OCR] 图像预处理完成:', processedFile);
