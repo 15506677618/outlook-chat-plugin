@@ -734,52 +734,109 @@ app.post('/api/mcp/get_my_quotations', requirePassword, async (req, res) => {
   }
 });
 
-// 导入 Tesseract.js
-import { createWorker } from 'tesseract.js';
+// 导入 child_process 用于执行系统命令
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import { writeFile, unlink } from 'fs/promises';
+import { join } from 'path';
+import { tmpdir } from 'os';
 
-// OCR 图片识别接口（使用本地 Tesseract）
+const execAsync = promisify(exec);
+
+// OCR 图片识别接口（使用系统 Tesseract 命令行）
 app.post('/api/ocr', async (req, res) => {
-  const { imageBase64, imageUrl } = req.body;
+  const { imageBase64, imageUrl, preprocess = true } = req.body;
   
   if (!imageBase64 && !imageUrl) {
     return res.status(400).json({ error: '请提供图片 base64 数据或图片 URL' });
   }
   
-  let worker = null;
+  let tempFile = null;
+  let processedFile = null;
   
   try {
     console.log('[OCR] 开始识别...');
     
-    // 创建 Tesseract worker
-    worker = await createWorker('chi_sim+eng'); // 中文简体 + 英文
-    
-    let result;
-    
     if (imageBase64) {
-      // 从 base64 识别
-      const imageData = `data:image/png;base64,${imageBase64}`;
-      result = await worker.recognize(imageData);
+      // 将 base64 保存为临时文件
+      console.log('[OCR] 图片大小:', `${Math.round(imageBase64.length / 1024)}KB`);
+      tempFile = join(tmpdir(), `ocr-${Date.now()}.png`);
+      const imageBuffer = Buffer.from(imageBase64, 'base64');
+      await writeFile(tempFile, imageBuffer);
+      console.log('[OCR] 临时文件已保存:', tempFile);
     } else if (imageUrl) {
-      // 从 URL 识别
-      result = await worker.recognize(imageUrl);
+      // 下载图片
+      console.log('[OCR] 下载图片:', imageUrl);
+      tempFile = join(tmpdir(), `ocr-${Date.now()}.png`);
+      const response = await fetch(imageUrl);
+      const buffer = await response.buffer();
+      await writeFile(tempFile, buffer);
+      console.log('[OCR] 图片已下载:', tempFile);
     }
     
-    // 终止 worker
-    await worker.terminate();
+    // 图像预处理（如果启用）
+    let targetFile = tempFile;
+    if (preprocess) {
+      try {
+        console.log('[OCR] 执行图像预处理...');
+        processedFile = join(tmpdir(), `ocr-processed-${Date.now()}.png`);
+        
+        // 使用 ImageMagick 进行预处理：
+        // - 提高分辨率到 300 DPI
+        // - 转换为灰度
+        // - 自适应阈值处理（提高对比度）
+        // - 去噪
+        await execAsync(
+          `convert "${tempFile}" -set units PixelsPerInch -density 300 -colorspace Gray -adaptive-threshold 10x10+5% -despeckle "${processedFile}"`
+        );
+        
+        console.log('[OCR] 图像预处理完成:', processedFile);
+        targetFile = processedFile;
+      } catch (preprocessError) {
+        console.warn('[OCR] 图像预处理失败，使用原图:', preprocessError.message);
+        // 如果预处理失败，继续使用原图
+      }
+    }
     
-    console.log('[OCR] 识别完成:', result.data.text.substring(0, 100) + '...');
+    // 使用系统 Tesseract 命令行识别
+    // 优化参数说明：
+    // --psm 6: 假设文本是统一的文本块
+    // --oem 3: 使用 LSTM 神经网络引擎
+    // -c preserve_interword_spaces=1: 保留单词间空格
+    // -c textord_heavy_nr=1: 启用重型去噪
+    console.log('[OCR] 执行 Tesseract 识别...');
+    const { stdout, stderr } = await execAsync(
+      `tesseract "${targetFile}" stdout -l chi_sim+eng --psm 6 --oem 3 -c preserve_interword_spaces=1 -c textord_heavy_nr=1`
+    );
+    
+    if (stderr) {
+      console.warn('[OCR] Tesseract 警告:', stderr);
+    }
+    
+    console.log('[OCR] 识别完成，结果长度:', stdout.length);
+    
+    // 删除临时文件
+    if (tempFile) {
+      await unlink(tempFile).catch(() => {});
+    }
+    if (processedFile) {
+      await unlink(processedFile).catch(() => {});
+    }
     
     res.json({
       success: true,
-      text: result.data.text,
-      confidence: result.data.confidence,
+      text: stdout.trim(),
       timestamp: new Date().toISOString()
     });
     
   } catch (error) {
-    console.error('OCR 错误:', error);
-    if (worker) {
-      await worker.terminate().catch(() => {});
+    console.error('[OCR] 错误:', error);
+    // 清理临时文件
+    if (tempFile) {
+      await unlink(tempFile).catch(() => {});
+    }
+    if (processedFile) {
+      await unlink(processedFile).catch(() => {});
     }
     res.status(500).json({
       error: 'OCR 识别失败',
