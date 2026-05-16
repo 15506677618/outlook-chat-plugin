@@ -1093,6 +1093,36 @@ if (btnSendInquiryEmail) {
   });
 }
 
+// ========== 回复邮件按钮 ==========
+const btnReplyEmail = document.getElementById('btn-reply-email');
+if (btnReplyEmail) {
+  btnReplyEmail.addEventListener('click', () => {
+    // 检查是否有当前邮件
+    if (!currentEmail || !currentEmail.id) {
+      alert('请先加载一封邮件');
+      return;
+    }
+    
+    console.log('[回复邮件] 打开回复窗口，邮件ID:', currentEmail.id);
+    
+    // 发送消息给 background.js 打开回复窗口
+    browser.runtime.sendMessage({
+      type: 'replyEmail',
+      messageId: currentEmail.id
+    }).then((response) => {
+      if (response && response.success) {
+        console.log('[回复邮件] 回复窗口已打开');
+      } else {
+        console.error('[回复邮件] 打开失败:', response?.error);
+        alert('打开回复窗口失败: ' + (response?.error || '未知错误'));
+      }
+    }).catch((err) => {
+      console.error('[回复邮件] 错误:', err);
+      alert('打开回复窗口失败: ' + err.message);
+    });
+  });
+}
+
 // 模拟邮件数据（本地调试用）
 const mockEmails = [
   {

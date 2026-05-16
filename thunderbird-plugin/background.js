@@ -296,6 +296,26 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'replyEmail') {
+    log('opening reply window for message:', message.messageId);
+    
+    if (!message.messageId) {
+      error('replyEmail failed: messageId is required');
+      sendResponse({ success: false, error: '邮件ID不能为空' });
+      return true;
+    }
+    
+    // 使用 beginReply 打开回复窗口
+    browser.compose.beginReply(message.messageId).then((tab) => {
+      log('reply window opened:', tab);
+      sendResponse({ success: true, tabId: tab.id });
+    }).catch((err) => {
+      error('failed to open reply window:', err);
+      sendResponse({ success: false, error: err.message });
+    });
+    return true;
+  }
+
   if (message.type === 'getConfig') {
     log('processing getConfig request');
     
