@@ -209,6 +209,8 @@ if (browser.messageDisplayAction && browser.messageDisplayAction.onClicked) {
         // 再发送邮件内容
         browser.tabs.sendMessage(chatTabId, {
           type: 'emailContent',
+          id: message.id,
+          messageId: message.id,
           userEmail: userEmail,
           subject: message.subject || '无主题',
           from: formatAuthor(message.author),
@@ -255,6 +257,8 @@ if (browser.messageDisplay && browser.messageDisplay.onMessageDisplayed) {
       
       browser.tabs.sendMessage(chatTabId, {
         type: 'emailContent',
+        id: message.id,
+        messageId: message.id,
         userEmail: userEmail,
         subject: message.subject || '无主题',
         from: formatAuthor(message.author),
@@ -379,6 +383,8 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return getEmailConversation(msg.id).then(conversation => {
           sendResponse({
             type: 'emailContent',
+            id: msg.id,
+            messageId: msg.id,
             userEmail: userEmail,
             subject: msg.subject,
             from: formatAuthor(msg.author),
